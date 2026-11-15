@@ -52,6 +52,9 @@ anything.
 - The tone is practical and cautious: a clear "skip" is a useful answer. Say what you could not verify.
 
 ## The code
+- **Claude settings:** `.claude/settings.json` (shared) blocks reading `.env` and `.state.json`, fetching listing
+  sites, starting the live bot and force-pushing, and asks before pushes, analyses and sheet copies. Personal
+  overrides go in `.claude/settings.local.json` (git-ignored). Keep it compatible with the headless analysis run.
 - **Standards:** `docs/CODING_STANDARDS.md` is binding for every code change. Run ruff, mypy and the tests before
   committing (README, "Development").
 - **The bot:** `deal_scout/bot.py` is the conversation logic of a standard-library Python long-polling bot (outgoing

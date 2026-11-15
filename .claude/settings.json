@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Read(**/.env)",
+      "Edit(**/.env)",
+      "Read(**/.state.json)",
+      "Edit(**/.state.json)",
+      "Bash(cat .env)",
+      "Bash(head .env)",
+      "Bash(tail .env)",
+      "Bash(less .env)",
+      "Bash(grep * .env)",
+      "Bash(python3 -m deal_scout)",
+      "Bash(python3 -m deal_scout *)",
+      "Bash(python3 -m deal_scout.bot*)",
+      "Bash(python3 -m deal_scout.__main__*)",
+      "Bash(.venv/bin/python -m deal_scout)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "WebFetch(domain:facebook.com)",
+      "WebFetch(domain:www.facebook.com)",
+      "WebFetch(domain:m.facebook.com)",
+      "WebFetch(domain:olx.pl)",
+      "WebFetch(domain:www.olx.pl)",
+      "WebFetch(domain:m.olx.pl)",
+      "WebFetch(domain:otomoto.pl)",
+      "WebFetch(domain:www.otomoto.pl)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(git reset --hard*)",
+      "Bash(python3 -m deal_scout.process*)",
+      "Bash(python3 -m deal_scout.sheet*)",
+      "Bash(claude -p*)",
+      "Edit(.claude/settings.json)"
+    ],
+    "allow": [
+      "Bash(python3 -m unittest*)",
+      "Bash(.venv/bin/ruff check*)",
+      "Bash(.venv/bin/mypy*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(python3 demo/build_site.py*)",
+      "Bash(python3 -m deal_scout.market)",
+      "Bash(python3 -m deal_scout.usage)"
+    ]
+  }
+}

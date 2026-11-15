@@ -7,3 +7,4 @@ __pycache__/
 logs/
 domains/*/criteria.md
 .venv/
+.claude/settings.local.json
