@@ -85,10 +85,12 @@ class TelegramAPI:
     """The few Telegram Bot API calls we need. Outgoing HTTPS only (long polling): no open ports."""
 
     def __init__(self, token: str) -> None:
+        """Build the API and file URLs for a bot token."""
         self.base = f"https://api.telegram.org/bot{token}/"
         self.file_base = f"https://api.telegram.org/file/bot{token}/"
 
     def call(self, method: str, params: dict[str, Any] | None = None, timeout: float = 60) -> Any:
+        """Call one Bot API method and return its result, raising RuntimeError if Telegram says it failed."""
         data = json.dumps(params or {}).encode("utf-8")
         req = urllib.request.Request(self.base + method, data=data, headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -98,11 +100,13 @@ class TelegramAPI:
         return body["result"]
 
     def get_updates(self, offset: int, wait: int = 30) -> list[dict[str, Any]]:
+        """Long-poll for new messages and button taps, starting at offset."""
         params = {"offset": offset, "timeout": wait, "allowed_updates": ["message", "callback_query"]}
         return cast(list[dict[str, Any]], self.call("getUpdates", params, timeout=wait + 15))
 
     def send_message(self, chat_id: int | None, text: str, buttons: list[tuple[str, str]] | None = None,
                      html: bool = False) -> None:
+        """Send a text, optionally HTML-formatted and with link or callback buttons under it."""
         params: dict[str, Any] = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
         if html:
             params["parse_mode"] = "HTML"
@@ -114,9 +118,11 @@ class TelegramAPI:
         self.call("sendMessage", params)
 
     def answer_callback(self, callback_id: str) -> None:
+        """Acknowledge a button tap so Telegram stops its loading spinner."""
         self.call("answerCallbackQuery", {"callback_query_id": callback_id})
 
     def get_file_bytes(self, file_id: str) -> bytes:
+        """Download a file the owner sent, by its Telegram file id."""
         info = self.call("getFile", {"file_id": file_id})
         with urllib.request.urlopen(self.file_base + info["file_path"], timeout=60) as resp:
             return cast(bytes, resp.read())
@@ -126,19 +132,23 @@ class Inbox:
     """inbox/<NNN>/ holds photo_01.jpg..., notes.txt, links.txt and meta.json for one listing."""
 
     def __init__(self, root: Path) -> None:
+        """Open (and create if needed) the inbox folder under the project root."""
         self.dir = root / "inbox"
         self.dir.mkdir(parents=True, exist_ok=True)
 
     def next_number(self) -> int:
+        """Return the number the next new listing gets."""
         nums = [int(p.name) for p in self.dir.iterdir() if p.is_dir() and p.name.isdigit()]
         return (max(nums) + 1) if nums else 1
 
     def folder(self, n: int) -> Path:
+        """Return listing n's folder, creating it if needed."""
         path = self.dir / f"{n:03d}"
         path.mkdir(parents=True, exist_ok=True)
         return path
 
     def add_photo(self, n: int, data: bytes, ext: str = ".jpg") -> Path:
+        """Save an image as the listing's next photo_NN file and return its path."""
         folder = self.folder(n)
         count = len(list(folder.glob("photo_*")))
         path = folder / f"photo_{count + 1:02d}{ext}"
@@ -146,11 +156,13 @@ class Inbox:
         return path
 
     def add_note(self, n: int, text: str, when: float) -> None:
+        """Append a timestamped note to the listing's notes.txt."""
         with open(self.folder(n) / "notes.txt", "a", encoding="utf-8") as f:
             stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(when))
             f.write(f"[{stamp}] {text}\n")
 
     def add_links(self, n: int, links: Sequence[str]) -> list[str]:
+        """Append the links not seen before to links.txt and return the new ones."""
         path = self.folder(n) / "links.txt"
         known = set(path.read_text(encoding="utf-8").split()) if path.exists() else set()
         new = [u for u in links if u not in known]
@@ -160,12 +172,14 @@ class Inbox:
         return new
 
     def summary(self, n: int) -> tuple[int, list[str]]:
+        """Return the listing's photo count and its saved links."""
         folder = self.dir / f"{n:03d}"
         photos = len(list(folder.glob("photo_*")))
         links = (folder / "links.txt").read_text(encoding="utf-8").split() if (folder / "links.txt").exists() else []
         return photos, links
 
     def latest(self, count: int = 10) -> list[int]:
+        """Return the numbers of the most recent listings, oldest first."""
         nums = sorted(int(p.name) for p in self.dir.iterdir() if p.is_dir() and p.name.isdigit())
         return nums[-count:]
 
@@ -201,6 +215,7 @@ class Bot:
                  processor: Callable[[int], list[Message]] | None = None, auto_analyse: bool = False,
                  contact: Callable[[int, str], list[Message]] | None = None, sheet_link: str | None = None,
                  seller_text: Callable[[int, str, str | None], list[Message]] | None = None) -> None:
+        """Wire the bot to its Telegram API, data folder, allowed user and the optional analysis callbacks."""
         self.api = api
         self.root = root
         self.inbox = Inbox(root)
@@ -223,9 +238,11 @@ class Bot:
             self.state.update(cast(BotState, json.loads(self.state_path.read_text(encoding="utf-8"))))
 
     def save_state(self) -> None:
+        """Write the poll offset and the open listing to .state.json so they survive a restart."""
         self.state_path.write_text(json.dumps(self.state), encoding="utf-8")
 
     def reply(self, chat_id: int | None, text: str) -> None:
+        """Send a plain-text reply to a chat."""
         self.api.send_message(chat_id, text)
 
     def current_listing(self, media_group: str | None, force_new: bool = False) -> tuple[int, bool]:
@@ -244,6 +261,7 @@ class Bot:
         return n, True
 
     def handle_update(self, update: dict[str, Any]) -> None:
+        """Handle one Telegram update: ignore strangers, run commands, and save photos, notes and links."""
         if update.get("callback_query"):
             self.handle_callback(update["callback_query"])
             return
@@ -287,6 +305,7 @@ class Bot:
     ACK_DELAY = 2  # seconds of quiet before confirming what was saved
 
     def flush_ack(self, force: bool = False) -> None:
+        """Send the pending "saved" confirmation once the photos stop arriving, or at once when forced."""
         if self.ack and (force or self.clock() - self.ack.at >= self.ACK_DELAY):
             n = self.ack.n
             self.ack = None
@@ -350,6 +369,7 @@ class Bot:
         self.reply(chat, "\n".join(lines))
 
     def done(self, chat: int | None, args: Sequence[str]) -> None:
+        """Queue the analysis of the open listing, or of the listing number given."""
         if self.processor is None:
             self.reply(chat, "Analysis is off. Set ANALYSIS=manual or ANALYSIS=auto in .env and restart.")
             return
@@ -367,6 +387,7 @@ class Bot:
         self.queue_analysis(n)
 
     def phone(self, chat: int | None, args: Sequence[str]) -> None:
+        """Build the seller message with a WhatsApp button for a listing from a phone number given in chat."""
         if len(args) < 2 or not args[0].lstrip("#").isdigit():
             self.reply(chat, "Usage: /phone 7 600 123 456")
             return
@@ -383,7 +404,7 @@ class Bot:
             self.send(item)
 
     def handle_callback(self, cb: dict[str, Any]) -> None:
-        """A tap on a button under a summary: send the message to the seller, or the SMS version."""
+        """Answer a tap on a button under a summary: send the message to the seller, or the SMS version."""
         if self.allowed is None or (cb.get("from") or {}).get("id") != self.allowed:
             return  # strangers get no answer at all
         try:
@@ -404,6 +425,7 @@ class Bot:
             self.send(item)
 
     def status(self) -> str:
+        """Describe the running version, the analysis mode and the queue."""
         now = code_version()
         started = time.strftime("%Y-%m-%d %H:%M", time.localtime(self.started))
         lines = [f"Running since {started}, code {self.version}."]
@@ -417,7 +439,7 @@ class Bot:
         return "\n".join(lines)
 
     def send(self, item: str | Message) -> None:
-        """A plain string, or a Message (text, optional HTML formatting, buttons and a fallback link)."""
+        """Send a plain string, or a Message (text, optional HTML formatting, buttons and a fallback link)."""
         if isinstance(item, str):
             self.api.send_message(self.allowed, item)
             return
@@ -443,12 +465,15 @@ class Bot:
                                                            if b[1].startswith("https://")))
 
     def queue_analysis(self, n: int) -> None:
+        """Put listing n in the analysis queue and tell the owner."""
         self.jobs.put(n)
         self.reply(self.allowed, f"#{n}: analysing, usually about a minute...")
 
     def tick(self) -> None:
-        """Called after every poll: confirm what was saved once photos stop arriving; with auto analysis on,
-        analyse the open listing once its window has passed."""
+        """Confirm what was saved once photos stop arriving, after every poll.
+
+        With auto analysis on, also analyse the open listing once its window has passed.
+        """
         self.flush_ack()
         cur = self.state.get("current")
         if self.auto_analyse and cur and self.clock() - cur["last"] > self.window:
@@ -457,8 +482,11 @@ class Bot:
             self.queue_analysis(cur["n"])
 
     def run_job(self, n: int) -> None:
-        """processor(n) returns a list of messages (the summary, then the draft for the seller, sent separately
-        so it can be copied in one go); a failure is reported as one plain string."""
+        """Run the analysis of listing n and send the result, or the failure, to the chat.
+
+        processor(n) returns a list of messages (the summary, then the draft for the seller, sent separately
+        so it can be copied in one go); a failure is reported as one plain string.
+        """
         log.info("#%d: analysis started", n)
         t0 = time.time()
         result: str | list[Message]
@@ -473,6 +501,7 @@ class Bot:
             self.send(item)
 
     def worker(self) -> None:
+        """Run queued analysis jobs one at a time, forever; meant for a background thread."""
         while True:
             n = self.jobs.get()
             try:
@@ -481,6 +510,7 @@ class Bot:
                 log.exception("Could not report analysis of #%d: %s", n, exc)
 
     def run(self) -> None:
+        """Poll Telegram forever, handling each update and then the periodic tick."""
         log.info("deal-scout running, code %s. Ctrl+C to stop.", self.version)
         if self.processor is not None:
             threading.Thread(target=self.worker, daemon=True).start()

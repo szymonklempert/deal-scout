@@ -73,6 +73,7 @@ def record_api(root: Path | str, listing: int, ok: bool, provider: str, model: s
 
 
 def load(path: Path | str) -> list[dict[str, Any]]:
+    """Read the usage log, skipping lines that are not valid JSON."""
     if not Path(path).exists():
         return []
     out: list[dict[str, Any]] = []
@@ -85,10 +86,12 @@ def load(path: Path | str) -> list[dict[str, Any]]:
 
 
 def tokens(n: float) -> str:
+    """Format a token count compactly, e.g. 1500 as "2k" and 2500000 as "2.5M"."""
     return f"{n / 1e6:.1f}M" if n >= 1e6 else f"{round(n / 1000)}k" if n >= 1000 else str(n)
 
 
 def line(label: str, recs: Sequence[dict[str, Any]]) -> str:
+    """Describe one period's analyses: count, tokens, cost and the average per listing."""
     if not recs:
         return f"{label}: nothing"
     ok = [r for r in recs if r.get("ok")]
@@ -107,6 +110,7 @@ def line(label: str, recs: Sequence[dict[str, Any]]) -> str:
 
 
 def summary(path: Path | str, now: float | None = None) -> str:
+    """Return the usage report for the last 7 days, 30 days and all time."""
     now = now or time.time()
     recs = load(path)
     return "\n".join([
@@ -119,6 +123,7 @@ def summary(path: Path | str, now: float | None = None) -> str:
 
 
 def main() -> None:
+    """Print the usage report."""
     print(summary(config.ROOT / "logs" / "usage.jsonl"))
 
 

@@ -37,6 +37,7 @@ log.addHandler(logging.NullHandler())  # quiet unless setup_logging() adds real 
 def process_listing(root: Path | str, n: int, *, settings: Settings, domain: Domain, model: str | None = None,
                     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
                     pusher: Callable[..., None] | None = None, client: Any = None) -> list[Message]:
+    """Analyse inbox listing n and update its card, the CSV, the index, the market page and the sheet."""
     root = Path(root)
     nnn = f"{n:03d}"
     if not (root / "inbox" / nnn).is_dir():
@@ -75,6 +76,7 @@ def process_listing(root: Path | str, n: int, *, settings: Settings, domain: Dom
 
 
 def main(argv: Sequence[str]) -> None:
+    """Run the analysis of one listing from the command line and print the summary."""
     if len(argv) != 2 or not argv[1].isdigit():
         sys.exit("usage: python3 bot/process.py <listing number>")
     load_env(ROOT / ".env")

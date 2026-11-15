@@ -18,7 +18,7 @@ log = logging.getLogger("dealscout")
 
 
 def claude_command(nnn: str, model: str, d: Domain, claude_bin: str = "claude") -> list[str]:
-    """The headless Claude Code call: read anything in the project, write only into listings/, no shell, no web."""
+    """Build the headless Claude Code call: reads the project, writes only into listings/, no shell, no web."""
     return [
         claude_bin, "-p", prompt(nnn, d),
         "--model", model,
@@ -34,6 +34,7 @@ def claude_command(nnn: str, model: str, d: Domain, claude_bin: str = "claude") 
 def run_claude(root: Path | str, nnn: str, model: str, d: Domain, settings: Settings,
                runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
                timeout: int = 900) -> Listing:
+    """Run the headless Claude Code command and return the structured card it produced."""
     try:
         env = dict(settings.claude_env)  # without the bot token and Anthropic keys, see config.child_env
         command = claude_command(nnn, model, d, claude_bin=settings.claude_bin)

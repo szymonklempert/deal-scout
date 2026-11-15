@@ -32,8 +32,10 @@ CHECK = {
 
 
 def schema(d: Domain, card: bool = False) -> dict[str, Any]:
-    """The JSON shape the model must return: fixed fields plus the domain's specs and categories. With card=True (API
-    providers, which can't write files) it also carries the card's text."""
+    """Return the JSON shape the model must return: fixed fields plus the domain's specs and categories.
+
+    With card=True (API providers, which can't write files) it also carries the card's text.
+    """
     spec = {
         "type": "object",
         "additionalProperties": False,
@@ -144,7 +146,7 @@ Put the seller's name only in the card's seller line and in seller_name. Never w
 
 
 def prompt(nnn: str, d: Domain, api: bool = False) -> str:
-    """The instructions. Claude Code reads the files itself; for API providers the files are appended (api_files)."""
+    """Return the instructions; Claude Code reads the files itself, for API providers they are appended (api_files)."""
     cats = "".join(f"- {key}: one of the allowed values{': ' + cat['help'] if cat.get('help') else ''}; "
                    "\"unknown\" when the listing doesn't let you tell.\n" for key, cat in d.categories.items())
     return ((INTRO_API if api else INTRO_CLAUDE_CODE) + RULES).format(
@@ -156,8 +158,11 @@ def prompt(nnn: str, d: Domain, api: bool = False) -> str:
 
 
 def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[Path]]:
-    """(system, user_text, photo paths) for an API provider. The system prompt holds the instructions and the domain's
-    files (the same for every listing, so providers can cache them); the listing goes in the user turn."""
+    """Return (system, user_text, photo paths) for an API provider.
+
+    The system prompt holds the instructions and the domain's files (the same for every listing, so providers can
+    cache them); the listing goes in the user turn.
+    """
     files = ((["criteria.md"] if d.has_criteria() else []) + ["checklist.md", "card-template.md"]
              + list(d.reference_files))
     parts = [prompt(nnn, d, api=True)]

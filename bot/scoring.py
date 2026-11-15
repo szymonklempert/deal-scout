@@ -19,6 +19,7 @@ def ordered_specs(data: Listing, specs: list[str]) -> list[tuple[str, str, int |
 
 
 def specs_avg(data: Listing, specs: list[str]) -> float | None:
+    """Return the average of the spec scores, or None when none was scored."""
     scores = [s for _, _, s in ordered_specs(data, specs) if isinstance(s, (int, float))]
     return round(sum(scores) / len(scores), 1) if scores else None
 
@@ -27,8 +28,11 @@ WEIGHT: dict[Any, float] = {"required": 1.0, "big plus": 1.0, "nice to have": 0.
 
 
 def score(checks: list[dict[str, Any]]) -> float | None:
-    """0-10 from the criteria checks. Met = 1, unknown = 0.5, missed = 0, each times its weight (nice-to-haves count
-    half); a missed deal breaker makes it 0. Returns None when there are no criteria to score against."""
+    """Score 0-10 from the criteria checks.
+
+    Met = 1, unknown = 0.5, missed = 0, each times its weight (nice-to-haves count half); a missed deal breaker
+    makes it 0. Returns None when there are no criteria to score against.
+    """
     if not checks:
         return None
     if any(c["deal_breaker"] and c["result"] == "missed" for c in checks):

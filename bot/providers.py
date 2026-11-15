@@ -35,7 +35,7 @@ class ProviderError(Exception):
 
 
 def name(settings: Settings) -> str:
-    """The configured provider, checked against the known ones."""
+    """Return the configured provider, checked against the known ones."""
     p = settings.provider
     if p not in PROVIDERS:
         raise ProviderError(f"PROVIDER={p} is not one of: {', '.join(PROVIDERS)}")
@@ -43,8 +43,11 @@ def name(settings: Settings) -> str:
 
 
 def model_for(provider: str, settings: Settings) -> str:
-    """MODEL from .env; CLAUDE_MODEL still works for claude-code. openai/openrouter have no default on purpose:
-    model names change often, so pick one from the provider's model list."""
+    """Return MODEL from .env; CLAUDE_MODEL still works for claude-code.
+
+    openai/openrouter have no default on purpose: model names change often, so pick one from the provider's model
+    list.
+    """
     m = settings.model
     if provider == "claude-code":
         return m or settings.claude_model or "opus"
@@ -67,7 +70,7 @@ def image_blocks(paths: Iterable[Path]) -> list[tuple[str, str]]:
 
 
 def price(tokens_in: int, tokens_out: int, price_per_mtok: str) -> float | None:
-    """Optional PRICE_PER_MTOK="input,output" (e.g. "4,20") turns API token counts into a cost estimate."""
+    """Turn API token counts into a cost estimate from the optional PRICE_PER_MTOK="input,output" (e.g. "4,20")."""
     try:
         pin, pout = (float(x) for x in price_per_mtok.split(","))
     except ValueError:
@@ -157,6 +160,7 @@ def call_openai(model: str, system: str, user_text: str, images: Iterable[tuple[
 
 
 def parse_json(text: str) -> dict[str, Any]:
+    """Parse the model's JSON answer, which must be an object."""
     try:
         data = json.loads(text)
     except ValueError as exc:
@@ -168,6 +172,7 @@ def parse_json(text: str) -> dict[str, Any]:
 
 def call(provider: str, model: str, system: str, user_text: str, images: Iterable[tuple[str, str]],
          schema: dict[str, Any], settings: Settings, client: Any = None) -> tuple[dict[str, Any], RunStats]:
+    """Run one structured-output request on the chosen API provider and return the card with its run stats."""
     if provider == "anthropic":
         return call_anthropic(model, system, user_text, images, schema, effort=settings.effort, client=client)
     if provider == "openai":

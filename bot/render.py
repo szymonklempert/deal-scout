@@ -23,20 +23,24 @@ class Message:
 
 
 def esc(text: object) -> str:
+    """Escape text for Telegram's HTML mode."""
     return html.escape(str(text), quote=False)
 
 
 def dot(score: float | None) -> str:
+    """Return the traffic-light emoji for a 0-10 score."""
     if score is None:
         return "⚪"
     return "🟢" if score >= 7 else "🟡" if score >= 4 else "🔴"
 
 
 def fmt_int(v: Any) -> str:
+    """Format a number with a space as the thousands separator."""
     return f"{int(v):,}".replace(",", " ")
 
 
 def contact_line(n: int, data: Listing, phone: str | None) -> str:
+    """Return the line that says how the seller wants to be contacted and what the buttons do."""
     pref = data.get("contact_preference") or "not stated"
     how = f"listing asks for {pref}" if pref != "not stated" else "no contact preference"
     if phone:
@@ -45,8 +49,11 @@ def contact_line(n: int, data: Listing, phone: str | None) -> str:
 
 
 def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | None) -> list[Button]:
-    """Buttons under the summary. The message buttons are taps the bot answers (callback data); the phone number
-    rides along inside the button, so it is never written to a file."""
+    """Return the buttons under the summary.
+
+    The message buttons are taps the bot answers (callback data); the phone number rides along inside the button,
+    so it is never written to a file.
+    """
     buttons: list[Button] = []
     if (data.get("seller_message") or "").strip():
         buttons.append(("💬 WhatsApp message", f"msg:{n}:{phone or ''}"))

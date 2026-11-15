@@ -23,7 +23,7 @@ def enabled(settings: Settings) -> bool:
 
 
 def link(settings: Settings) -> str | None:
-    """The spreadsheet's own address (GOOGLE_SHEET_LINK), for the "Open sheet" button; None if unset or not a sheet."""
+    """Return the spreadsheet's own address (GOOGLE_SHEET_LINK) for the "Open sheet" button, or None."""
     url = settings.sheet_link
     return url if url.startswith("https://docs.google.com/spreadsheets/") else None
 
@@ -74,6 +74,7 @@ def push_all(csv_path: Path, fields: list[str], settings: Settings,
 
 
 def main() -> None:
+    """Copy every row of listings.csv to the Google Sheet."""
     load_env(ROOT / ".env")
     settings = Settings.from_env()
     if not enabled(settings):

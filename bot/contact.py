@@ -21,6 +21,7 @@ def normalise_phone(raw: object) -> str | None:
 
 
 def whatsapp_url(phone: str, text: str) -> str:
+    """Return a wa.me link that opens WhatsApp with the text ready to send."""
     return f"https://wa.me/{phone}?text={urllib.parse.quote(text, safe='')}"
 
 
@@ -44,8 +45,11 @@ def scrub_phone(path: Path, raw: object) -> None:
 
 
 def contact_messages(data: Listing, phone: str | None) -> list[Message]:
-    """The texts for the seller, each a separate Telegram message so it can be copied whole: the full message (with a
-    WhatsApp button when the number is known), then the short SMS version. The number lives only in the button."""
+    """Build the texts for the seller, each a separate Telegram message so it can be copied whole.
+
+    The full message (with a WhatsApp button when the number is known), then the short SMS version. The number
+    lives only in the button.
+    """
     out: list[Message] = []
     full = (data.get("seller_message") or "").strip()
     if full:
@@ -67,7 +71,7 @@ def contact_messages(data: Listing, phone: str | None) -> list[Message]:
 
 
 def seller_text(root: Path | str, n: int, kind: str, phone: str | None = None) -> list[Message]:
-    """What a message button sends: the full message (with the WhatsApp link when the number is known) or the SMS."""
+    """Build what a message button sends: the full message (WhatsApp link if the number is known) or the SMS."""
     path = Path(root) / "listings" / f"{n:03d}.json"
     if not path.exists():
         raise ProcessError(f"#{n} has not been analysed yet")
