@@ -9,7 +9,6 @@ import hashlib
 import json
 import logging
 import logging.handlers
-import os
 import queue
 import re
 import sys
@@ -19,6 +18,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+
+from config import Settings, load_env
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("dealscout")
@@ -56,18 +57,6 @@ HELP = (
     "/usage  how much Claude the analysis used (7 days, 30 days, all time)\n"
     "/help  this message"
 )
-
-
-def load_env(path):
-    """Read KEY=VALUE lines from a .env file into os.environ (without overriding existing values)."""
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
 class TelegramAPI:
@@ -437,28 +426,38 @@ class Bot:
 
 
 def main():
+    """Start the bot: read the settings once, wire the analysis and contact helpers in, and poll Telegram."""
     setup_logging(ROOT)
     load_env(ROOT / ".env")
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    if not token:
+    settings = Settings.from_env()
+    if not settings.telegram_token:
         sys.exit("TELEGRAM_BOT_TOKEN is not set. Copy .env.example to .env and fill it in.")
-    allowed = os.environ.get("TELEGRAM_ALLOWED_USER_ID")
-    mode = os.environ.get("ANALYSIS", "off").strip().lower()
-    processor = None
+    mode = settings.analysis
+    # Imported here, not at the top: process loads the active domain at import time (moves up with the domain step).
     import process
-    if mode in ("manual", "auto"):
-        processor = lambda n: process.process_listing(ROOT, n)  # noqa: E731
-    bot = Bot(TelegramAPI(token), ROOT, int(allowed) if allowed else None,
-              int(os.environ.get("GROUP_WINDOW_SECONDS", "180")), processor=processor, auto_analyse=(mode == "auto"),
-              contact=lambda n, phone: process.contact_for(ROOT, n, phone), sheet_link=process.sheet.link(),
-              seller_text=lambda n, kind, phone: process.seller_text(ROOT, n, kind, phone))
     import providers
+    import sheet
+
+    def processor(n):
+        return process.process_listing(ROOT, n, settings=settings)
+
+    def contact(n, phone):
+        return process.contact_for(ROOT, n, phone)
+
+    def seller_text(n, kind, phone):
+        return process.seller_text(ROOT, n, kind, phone)
+
+    analyse = mode in ("manual", "auto")
+    bot = Bot(TelegramAPI(settings.telegram_token), ROOT, settings.allowed_user_id, settings.group_window_seconds,
+              processor=processor if analyse else None, auto_analyse=(mode == "auto"), contact=contact,
+              sheet_link=sheet.link(settings), seller_text=seller_text)
     try:
-        engine = "%s, model %s" % (providers.name(), providers.model_for(providers.name()))
+        provider = providers.name(settings)
+        engine = "%s, model %s" % (provider, providers.model_for(provider, settings))
     except providers.ProviderError as exc:
         engine = "misconfigured: %s" % exc
-    log.info("Domain: %s. Analysis: %s (%s). Google Sheet %s", process.DOMAIN.name, mode if processor else "off",
-             engine, "on" if os.environ.get("GOOGLE_SHEET_URL") else "off")
+    log.info("Domain: %s. Analysis: %s (%s). Google Sheet %s", process.DOMAIN.name, mode if analyse else "off",
+             engine, "on" if settings.sheet_url else "off")
     bot.run()
 
 

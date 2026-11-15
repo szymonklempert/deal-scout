@@ -1,6 +1,6 @@
 """The API providers, with fake Anthropic / OpenAI clients: no network, no keys."""
+import dataclasses
 import json
-import os
 import sys
 import tempfile
 import unittest
@@ -10,14 +10,14 @@ from types import SimpleNamespace as Ns
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config  # noqa: E402
 from test_process import RESULT  # noqa: E402
 
 import process  # noqa: E402
 import providers  # noqa: E402
 import usage  # noqa: E402
 
-ENV = ("PROVIDER", "MODEL", "CLAUDE_MODEL", "EFFORT", "PRICE_PER_MTOK", "OPENROUTER_API_KEY", "GOOGLE_SHEET_URL",
-       "GOOGLE_SHEET_LINK")
+SETTINGS = config.Settings()
 CARD = "# #001 Fiat Ducato\n- Seller: Jan Kowalski, tel. +48 600-123-456\n"
 
 
@@ -61,8 +61,6 @@ class FakeOpenAI:
 
 class ProviderTests(unittest.TestCase):
     def setUp(self):
-        self.saved = {k: os.environ.pop(k, None) for k in ENV}
-        self.addCleanup(self.restore)
         self.dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.dir.cleanup)
         self.root = Path(self.dir.name)
@@ -72,22 +70,15 @@ class ProviderTests(unittest.TestCase):
         (folder / "photo_02.png").write_bytes(b"\x89PNGfake")
         (folder / "notes.txt").write_text("[2026-11-15 10:00] found in a FB group")
 
-    def restore(self):
-        for k, v in self.saved.items():
-            os.environ.pop(k, None)
-            if v is not None:
-                os.environ[k] = v
-
-    def run_listing(self, provider, client, model=None):
-        os.environ["PROVIDER"] = provider
-        return process.process_listing(self.root, 1, model=model, client=client)
+    def run_listing(self, provider, client, model=None, **overrides):
+        settings = dataclasses.replace(SETTINGS, provider=provider, **overrides)
+        return process.process_listing(self.root, 1, settings=settings, model=model, client=client)
 
     def test_default_is_claude_code_on_the_subscription(self):
-        self.assertEqual(providers.name(), "claude-code")
-        self.assertEqual(providers.model_for("claude-code"), "opus")
-        os.environ["PROVIDER"] = "gemini"
+        self.assertEqual(providers.name(SETTINGS), "claude-code")
+        self.assertEqual(providers.model_for("claude-code", SETTINGS), "opus")
         with self.assertRaisesRegex(providers.ProviderError, "not one of"):
-            providers.name()
+            providers.name(dataclasses.replace(SETTINGS, provider="gemini"))
 
     def test_anthropic_end_to_end(self):
         client = FakeAnthropic()
@@ -116,9 +107,8 @@ class ProviderTests(unittest.TestCase):
                          (True, "anthropic", 9200, 8000))
 
     def test_anthropic_model_without_fallback_and_effort_off(self):
-        os.environ["EFFORT"] = "none"
         client = FakeAnthropic()
-        self.run_listing("anthropic", client, model="claude-haiku-4-5")
+        self.run_listing("anthropic", client, model="claude-haiku-4-5", effort="none")
         kind, kw = client.calls[0]
         self.assertEqual(kind, "plain")
         self.assertNotIn("fallbacks", kw)
@@ -138,9 +128,8 @@ class ProviderTests(unittest.TestCase):
             self.run_listing("openai", FakeOpenAI())
 
     def test_openai_end_to_end(self):
-        os.environ["PRICE_PER_MTOK"] = "2,8"
         client = FakeOpenAI()
-        self.run_listing("openai", client, model="gpt-x")
+        self.run_listing("openai", client, model="gpt-x", price_per_mtok="2,8")
         kw = client.calls[0]
         self.assertEqual(kw["model"], "gpt-x")
         fmt = kw["response_format"]
@@ -153,17 +142,15 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual((rec["provider"], rec["cached_tokens"], rec["cost_usd"]), ("openai", 6000, 0.05))
 
     def test_openai_refusal_and_cut_off(self):
-        os.environ["MODEL"] = "gpt-x"
         with self.assertRaisesRegex(process.ProcessError, "declined: no"):
-            self.run_listing("openai", FakeOpenAI(refusal="no"))
+            self.run_listing("openai", FakeOpenAI(refusal="no"), model="gpt-x")
         with self.assertRaisesRegex(process.ProcessError, "cut off"):
-            self.run_listing("openai", FakeOpenAI(finish_reason="length"))
+            self.run_listing("openai", FakeOpenAI(finish_reason="length"), model="gpt-x")
 
     def test_openrouter_needs_a_key_and_reports_cost(self):
-        os.environ["MODEL"] = "anthropic/claude-x"
         with self.assertRaisesRegex(providers.ProviderError, "OPENROUTER_API_KEY"):
-            providers.call("openrouter", "m", "s", "u", [], {})
-        self.run_listing("openrouter", FakeOpenAI(cost=0.031))
+            providers.call("openrouter", "m", "s", "u", [], {}, SETTINGS)
+        self.run_listing("openrouter", FakeOpenAI(cost=0.031), model="anthropic/claude-x")
         self.assertEqual(usage.load(self.root / "logs/usage.jsonl")[-1]["cost_usd"], 0.031)
 
     def test_missing_sdk_is_explained(self):

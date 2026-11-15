@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config  # noqa: E402
 from test_process import FakeRunner  # noqa: E402
 
 import domain  # noqa: E402
@@ -61,7 +62,8 @@ class DomainTests(unittest.TestCase):
         self.assertNotIn("model_family", schema["properties"])
 
     def test_full_run_for_a_tv(self):
-        out = process.process_listing(self.root, 1, model="opus", runner=FakeRunner(RESULT))
+        out = process.process_listing(self.root, 1, settings=config.Settings(), model="opus",
+                                      runner=FakeRunner(RESULT))
         self.assertIn("⚪ Burn-in: <i>not shown</i>", out[0]["text"])
         self.assertIn("🟢 Panel: OLED · 9/10", out[0]["text"])
         row = process.read_rows(self.root / "listings/listings.csv")[1]

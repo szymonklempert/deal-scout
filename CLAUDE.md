@@ -54,6 +54,7 @@ owner's approval before editing a reference file.
   - Keep these restrictions, and keep every provider returning the same schema.
 - **Domains:** nothing in `bot/` may be specific to one domain. Domain knowledge goes in `domains/<name>/`.
 - **Other modules:**
+  - `bot/config.py` reads `.env` and the environment once into `Settings`; nothing else reads `os.environ`.
   - `bot/sheet.py` copies rows to a Google Sheet through `deploy/google-sheet.gs`;
   - `bot/market.py` builds `listings/market.md`;
   - `bot/usage.py` records Claude usage per run.

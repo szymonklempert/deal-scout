@@ -13,8 +13,9 @@ The SDKs are imported only when their provider is chosen, so the bot itself stay
 """
 import base64
 import json
-import os
 import time
+
+from config import Settings
 
 PROVIDERS = ("claude-code", "anthropic", "openai", "openrouter")
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
@@ -27,19 +28,20 @@ class ProviderError(Exception):
     pass
 
 
-def name():
-    p = (os.environ.get("PROVIDER") or "claude-code").strip().lower()
+def name(settings: Settings) -> str:
+    """The configured provider, checked against the known ones."""
+    p = settings.provider
     if p not in PROVIDERS:
         raise ProviderError("PROVIDER=%s is not one of: %s" % (p, ", ".join(PROVIDERS)))
     return p
 
 
-def model_for(provider):
+def model_for(provider: str, settings: Settings) -> str:
     """MODEL from .env; CLAUDE_MODEL still works for claude-code. openai/openrouter have no default on purpose:
     model names change often, so pick one from the provider's model list."""
-    m = (os.environ.get("MODEL") or "").strip()
+    m = settings.model
     if provider == "claude-code":
-        return m or os.environ.get("CLAUDE_MODEL") or "opus"
+        return m or settings.claude_model or "opus"
     if provider == "anthropic":
         return m or "claude-opus-5-5"
     if not m:
@@ -58,17 +60,16 @@ def image_blocks(paths):
     return out
 
 
-def price(tokens_in, tokens_out):
+def price(tokens_in: int, tokens_out: int, price_per_mtok: str) -> float | None:
     """Optional PRICE_PER_MTOK="input,output" (e.g. "4,20") turns API token counts into a cost estimate."""
-    raw = os.environ.get("PRICE_PER_MTOK") or ""
     try:
-        pin, pout = (float(x) for x in raw.split(","))
+        pin, pout = (float(x) for x in price_per_mtok.split(","))
     except ValueError:
         return None
     return round((tokens_in * pin + tokens_out * pout) / 1e6, 4)
 
 
-def call_anthropic(model, system, user_text, images, schema, client=None):
+def call_anthropic(model, system, user_text, images, schema, effort="medium", client=None):
     """Claude API: streaming (long output), structured output, cached system prompt, refusal fallback where offered."""
     if client is None:
         try:
@@ -79,7 +80,6 @@ def call_anthropic(model, system, user_text, images, schema, client=None):
     content = [{"type": "image", "source": {"type": "base64", "media_type": m, "data": d}} for m, d in images]
     content.append({"type": "text", "text": user_text})
     output_config = {"format": {"type": "json_schema", "schema": schema}}
-    effort = (os.environ.get("EFFORT") or "medium").strip()
     if effort and effort != "none":
         output_config["effort"] = effort
     kwargs = dict(
@@ -153,13 +153,13 @@ def parse_json(text):
     return data
 
 
-def call(provider, model, system, user_text, images, schema, client=None):
+def call(provider, model, system, user_text, images, schema, settings: Settings, client=None):
     if provider == "anthropic":
-        return call_anthropic(model, system, user_text, images, schema, client=client)
+        return call_anthropic(model, system, user_text, images, schema, effort=settings.effort, client=client)
     if provider == "openai":
         return call_openai(model, system, user_text, images, schema, client=client)
     if provider == "openrouter":
-        key = os.environ.get("OPENROUTER_API_KEY")
+        key = settings.openrouter_api_key
         if not key and client is None:
             raise ProviderError("set OPENROUTER_API_KEY in .env")
         return call_openai(model, system, user_text, images, schema, base_url=OPENROUTER_URL, api_key=key,

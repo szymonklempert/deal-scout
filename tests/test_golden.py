@@ -5,6 +5,7 @@ one of these outputs is intended, regenerate them with
     GOLDEN_UPDATE=1 python3 -m unittest tests.test_golden
 and review the diff of tests/golden/ before committing.
 """
+import dataclasses
 import json
 import os
 import re
@@ -16,6 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "bot"))
 sys.path.insert(0, str(HERE))
+import config  # noqa: E402
 from test_process import FakeRunner  # noqa: E402
 from test_providers import FakeAnthropic, FakeOpenAI  # noqa: E402
 
@@ -25,8 +27,6 @@ import process  # noqa: E402
 
 GOLDEN = HERE / "golden"
 FIXTURES = HERE / "fixtures"
-ENV = ("PROVIDER", "MODEL", "CLAUDE_MODEL", "CLAUDE_BIN", "EFFORT", "PRICE_PER_MTOK", "OPENROUTER_API_KEY",
-       "GOOGLE_SHEET_URL", "GOOGLE_SHEET_SECRET", "GOOGLE_SHEET_LINK", "DOMAIN")
 SHEET_LINK = "https://docs.google.com/spreadsheets/d/golden/edit"
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?")
 
@@ -95,9 +95,7 @@ class GoldenTests(unittest.TestCase):
     maxDiff = None
 
     def setUp(self):
-        self.saved = {k: os.environ.pop(k, None) for k in ENV}
-        self.addCleanup(self.restore)
-        os.environ["GOOGLE_SHEET_LINK"] = SHEET_LINK
+        self.settings = config.Settings(sheet_link=SHEET_LINK)
         self.dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.dir.cleanup)
         self.root = Path(self.dir.name)
@@ -105,12 +103,6 @@ class GoldenTests(unittest.TestCase):
         before = process.DOMAIN
         process.use_domain(self.domain)
         self.addCleanup(process.use_domain, before)
-
-    def restore(self):
-        for k, v in self.saved.items():
-            os.environ.pop(k, None)
-            if v is not None:
-                os.environ[k] = v
 
     def check(self, name, text):
         path = GOLDEN / name
@@ -138,9 +130,9 @@ class GoldenTests(unittest.TestCase):
         self.listing(1, links="https://example.com/item/1", notes="[2026-01-01 10:00] seen in a group")
         (self.root / "listings").mkdir()
         (self.root / "listings" / "market.md").write_text("# Market\n- phone: median 1.2k\n", encoding="utf-8")
-        os.environ["PROVIDER"] = "anthropic"
+        settings = dataclasses.replace(self.settings, provider="anthropic")
         client = FakeAnthropic(text=json.dumps(dict(result(), card_markdown="# #001 Widget\n- tel. 600 111 222\n")))
-        out = process.process_listing(self.root, 1, client=client)
+        out = process.process_listing(self.root, 1, settings=settings, client=client)
         kw = client.calls[0][1]
         content = kw["messages"][0]["content"]
         self.check("api_system.txt", kw["system"][0]["text"] + "\n")
@@ -150,9 +142,9 @@ class GoldenTests(unittest.TestCase):
                                                   ensure_ascii=False) + "\n")
         self.check("card_api.md", (self.root / "listings" / "001.md").read_text(encoding="utf-8"))
         self.check("summary_api.txt", message_text(out))
-        os.environ["PROVIDER"] = "openai"
+        settings = dataclasses.replace(self.settings, provider="openai")
         client = FakeOpenAI(content=json.dumps(dict(result(), card_markdown="# card\n")))
-        process.process_listing(self.root, 1, model="gpt-x", client=client)
+        process.process_listing(self.root, 1, settings=settings, model="gpt-x", client=client)
         kw = client.calls[0]
         self.assertEqual(kw["messages"][0]["content"], self.read("api_system.txt")[:-1])
 
@@ -174,7 +166,8 @@ class GoldenTests(unittest.TestCase):
             if n == 4:
                 over.update(criteria_checks=[], seller_message="", seller_sms="", seller_name=None,
                             price_pln=None, specs=[])
-            out = process.process_listing(self.root, n, model="opus", runner=FakeRunner(result(**over)))
+            out = process.process_listing(self.root, n, settings=self.settings, model="opus",
+                                          runner=FakeRunner(result(**over)))
             self.check("summary_%d.txt" % n, message_text(out))
         listings = self.root / "listings"
         self.check("listings.csv", mask(listings.joinpath("listings.csv").read_text(encoding="utf-8-sig")))
@@ -190,7 +183,8 @@ class GoldenTests(unittest.TestCase):
     def test_bot_transcript(self):
         api = Recorder()
         def processor(n):
-            return process.process_listing(self.root, n, model="opus", runner=FakeRunner(result()))
+            return process.process_listing(self.root, n, settings=self.settings, model="opus",
+                                           runner=FakeRunner(result()))
         bot = botmod.Bot(api, self.root, 1, window_seconds=180, clock=lambda: 1000.0, processor=processor,
                          contact=lambda n, phone: process.contact_for(self.root, n, phone), sheet_link=SHEET_LINK,
                          seller_text=lambda n, kind, phone: process.seller_text(self.root, n, kind, phone))

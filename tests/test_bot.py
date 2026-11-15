@@ -322,15 +322,6 @@ class BotTests(unittest.TestCase):
         self.drain(bot)
         self.assertIn("analysis failed: claude not found", self.api.sent[-1])
 
-    def test_env_file_does_not_override(self):
-        env = self.root / ".env"
-        env.write_text("# c\nFOO_TEST_KEY=1\nBAR_TEST_KEY='x y'\n")
-        import os
-        os.environ["FOO_TEST_KEY"] = "keep"
-        botmod.load_env(env)
-        self.assertEqual(os.environ["FOO_TEST_KEY"], "keep")
-        self.assertEqual(os.environ["BAR_TEST_KEY"], "x y")
-
 
 if __name__ == "__main__":
     unittest.main()

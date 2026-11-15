@@ -11,16 +11,19 @@ listings/listings.csv and listings/INDEX.md, and returns a short summary for Tel
 what is being bought: that comes from the domain (bot/domain.py). Standard library only.
 """
 import csv
+import dataclasses
+import functools
 import html
 import json
 import logging
-import os
 import re
 import subprocess
 import sys
 import time
 import urllib.parse
 from pathlib import Path
+
+from config import Settings, load_env
 
 import domain as domains
 import market
@@ -202,10 +205,10 @@ class ProcessError(Exception):
     pass
 
 
-def claude_command(nnn, model, d=None):
+def claude_command(nnn, model, d=None, claude_bin="claude"):
     """The headless Claude Code call: read anything in the project, write only into listings/, no shell, no web."""
     return [
-        os.environ.get("CLAUDE_BIN") or "claude", "-p", prompt(nnn, d),
+        claude_bin, "-p", prompt(nnn, d),
         "--model", model,
         "--tools", "Read,Write,Edit,Glob",
         "--allowedTools", "Read", "Glob", "Write(./listings/**)", "Edit(./listings/**)",
@@ -216,14 +219,11 @@ def claude_command(nnn, model, d=None):
     ]
 
 
-def run_claude(root, nnn, model, runner=subprocess.run, timeout=900):
+def run_claude(root, nnn, model, settings: Settings, runner=subprocess.run, timeout=900):
     try:
-        # Claude never needs the bot token; and without an API key in its environment Claude Code always uses the
-        # Claude subscription login, so a key added somewhere later can't quietly switch it to pay-per-use.
-        env = {k: v for k, v in os.environ.items()
-               if not k.startswith("TELEGRAM_") and k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
-        proc = runner(claude_command(nnn, model), cwd=str(root), env=env, capture_output=True, text=True,
-                      timeout=timeout)
+        env = dict(settings.claude_env)  # without the bot token and Anthropic keys, see config.child_env
+        command = claude_command(nnn, model, claude_bin=settings.claude_bin)
+        proc = runner(command, cwd=str(root), env=env, capture_output=True, text=True, timeout=timeout)
     except FileNotFoundError as exc:
         raise ProcessError("Claude Code (`claude`) is not installed or not on PATH; set CLAUDE_BIN in .env") from exc
     except subprocess.TimeoutExpired as exc:
@@ -275,24 +275,24 @@ def api_request(root, nnn, d=None):
     return "\n".join(parts), "\n\n".join(user), photos
 
 
-def analyse(root, nnn, runner=subprocess.run, client=None):
+def analyse(root, nnn, settings: Settings, runner=subprocess.run, client=None):
     """Run the analysis with PROVIDER from .env. API providers return the card's text, written here."""
     try:
-        provider = providers.name()
-        model = providers.model_for(provider)
+        provider = providers.name(settings)
+        model = providers.model_for(provider, settings)
     except providers.ProviderError as exc:
         raise ProcessError(str(exc)) from exc
     if provider == "claude-code":
-        return run_claude(root, nnn, model, runner=runner)
+        return run_claude(root, nnn, model, settings, runner=runner)
     system, user_text, photos = api_request(root, nnn)
     try:
         data, stats = providers.call(provider, model, system, user_text, providers.image_blocks(photos),
-                                     schema(card=True), client=client)
+                                     schema(card=True), settings, client=client)
     except Exception as exc:  # ProviderError or an SDK error (auth, rate limit, network)
         usage.record_api(root, int(nnn), False, provider, model, {})
         raise ProcessError("%s: %s" % (provider, exc)) from exc
     if stats.get("cost_usd") is None:
-        stats["cost_usd"] = providers.price(stats["input_tokens"], stats["output_tokens"])
+        stats["cost_usd"] = providers.price(stats["input_tokens"], stats["output_tokens"], settings.price_per_mtok)
     usage.record_api(root, int(nnn), True, provider, model, stats)
     card = (data.pop("card_markdown", "") or "").strip()
     (Path(root) / "listings" / (nnn + ".md")).write_text(card + "\n", encoding="utf-8")
@@ -492,7 +492,7 @@ def contact_line(n, data, phone):
     return "💬 %s · tap below for the message; no phone on the screenshots (/phone %d 600123456 adds one)" % (how, n)
 
 
-def summary_buttons(n, data, phone):
+def summary_buttons(n, data, phone, sheet_link: str | None):
     """Buttons under the summary. The message buttons are taps the bot answers (callback data); the phone number
     rides along inside the button, so it is never written to a file."""
     buttons = []
@@ -500,8 +500,8 @@ def summary_buttons(n, data, phone):
         buttons.append(("💬 WhatsApp message", "msg:%d:%s" % (n, phone or "")))
     if (data.get("seller_sms") or "").strip():
         buttons.append(("✉️ SMS", "sms:%d:%s" % (n, phone or "")))
-    if sheet.link():
-        buttons.append(("📊 Open sheet", sheet.link()))
+    if sheet_link:
+        buttons.append(("📊 Open sheet", sheet_link))
     return buttons
 
 
@@ -563,7 +563,7 @@ def summary_text(n, data, row, others=(), phone=None):
     return "\n".join(head) + "\n\n" + "\n".join(specs) + "\n\n" + "\n".join(tail)
 
 
-def process_listing(root, n, model=None, runner=subprocess.run, pusher=sheet.push, client=None):
+def process_listing(root, n, *, settings: Settings, model=None, runner=subprocess.run, pusher=None, client=None):
     root = Path(root)
     nnn = "%03d" % n
     if not (root / "inbox" / nnn).is_dir():
@@ -571,8 +571,10 @@ def process_listing(root, n, model=None, runner=subprocess.run, pusher=sheet.pus
     listings = root / "listings"
     listings.mkdir(exist_ok=True)
     if model:  # an explicit model (tests, a one-off run) wins over .env
-        os.environ["MODEL"] = model
-    data = analyse(root, nnn, runner=runner, client=client)
+        settings = dataclasses.replace(settings, model=model)
+    if pusher is None:
+        pusher = functools.partial(sheet.push, settings=settings)
+    data = analyse(root, nnn, settings, runner=runner, client=client)
     raw_phone = data.pop("seller_phone", None)
     phone = normalise_phone(raw_phone)  # used for the button only, never saved
     scrub_phone(listings / (nnn + ".md"), raw_phone)
@@ -588,7 +590,7 @@ def process_listing(root, n, model=None, runner=subprocess.run, pusher=sheet.pus
     except Exception:  # statistics are a bonus; never lose an analysis over them
         log.exception("#%s market.md not rebuilt", nnn)
     summary = summary_text(n, data, rows[n], same_seller(n, rows), phone)
-    if sheet.enabled():
+    if sheet.enabled(settings):
         try:
             pusher(rows[n], csv_fields())
             log.info("#%s copied to the Google Sheet", nnn)
@@ -596,7 +598,7 @@ def process_listing(root, n, model=None, runner=subprocess.run, pusher=sheet.pus
             log.error("#%s Google Sheet not updated: %s", nnn, exc)
             summary += "\n⚠️ Google Sheet not updated (%s). Retry: python3 bot/sheet.py" % esc(exc)
     item = {"text": summary[:4000], "html": True}
-    buttons = summary_buttons(n, data, phone)
+    buttons = summary_buttons(n, data, phone, sheet.link(settings))
     if buttons:
         item["buttons"] = buttons
     return [item]
@@ -616,15 +618,15 @@ def contact_for(root, n, raw_phone):
 def main(argv):
     if len(argv) != 2 or not argv[1].isdigit():
         sys.exit("usage: python3 bot/process.py <listing number>")
-    from bot import load_env  # here, not at the top: bot.py imports this module
     load_env(ROOT / ".env")
-    root = Path(os.environ.get("CAMPERVAN_ROOT", ROOT))
-    if root.resolve() != ROOT.resolve() and os.environ.get("GOOGLE_SHEET_URL"):
+    settings = Settings.from_env()
+    root = Path(settings.data_root or ROOT)
+    if root.resolve() != ROOT.resolve() and settings.sheet_url:
         # a trial run on another folder must never write its rows into the real sheet
-        os.environ["GOOGLE_SHEET_URL"] = ""
+        settings = dataclasses.replace(settings, sheet_url="")
         print("(CAMPERVAN_ROOT is another folder: not copying to the Google Sheet)", file=sys.stderr)
     try:
-        out = process_listing(root, int(argv[1]))
+        out = process_listing(root, int(argv[1]), settings=settings)
         plain = lambda t: html.unescape(re.sub(r"</?[biu]>", "", t))  # noqa: E731
         print("\n\n-----\n".join(plain(m["text"]) + "".join("\n[%s: %s]" % b for b in m.get("buttons", []))
                                    for m in out))

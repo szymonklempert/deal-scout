@@ -1,5 +1,5 @@
+import dataclasses
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -7,7 +7,11 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
+import config  # noqa: E402
+
 import process  # noqa: E402
+
+SETTINGS = config.Settings()
 
 
 def check(criterion, result, deal_breaker=False):
@@ -125,8 +129,8 @@ class CommandTests(unittest.TestCase):
     def test_no_seller_message_means_one_telegram_message(self):
         root = Path(self._tmp.name)
         (root / "inbox" / "001").mkdir(parents=True)
-        out = process.process_listing(root, 1, model="opus", runner=FakeRunner(dict(RESULT, seller_message=" ",
-                                                                                       seller_sms="")))
+        out = process.process_listing(root, 1, settings=SETTINGS, model="opus",
+                                      runner=FakeRunner(dict(RESULT, seller_message=" ", seller_sms="")))
         self.assertEqual(len(out), 1)
         self.assertNotIn("buttons", out[0])
 
@@ -141,16 +145,15 @@ class ProcessListingTests(unittest.TestCase):
         self.root = Path(self.dir.name)
         (self.root / "inbox" / "001").mkdir(parents=True)
         (self.root / "inbox" / "001" / "links.txt").write_text("https://www.facebook.com/groups/1/posts/2\n")
-        os.environ.pop("GOOGLE_SHEET_URL", None)
-        os.environ["TELEGRAM_BOT_TOKEN"] = "secret"
-        self.addCleanup(os.environ.pop, "TELEGRAM_BOT_TOKEN", None)
 
     def tearDown(self):
         self.dir.cleanup()
 
     def test_writes_json_csv_index_and_summary(self):
         runner = FakeRunner()
-        out = process.process_listing(self.root, 1, model="opus", runner=runner)
+        settings = config.Settings.from_env({"TELEGRAM_BOT_TOKEN": "secret", "ANTHROPIC_API_KEY": "k",
+                                             "PATH": "/usr/bin"})
+        out = process.process_listing(self.root, 1, settings=settings, model="opus", runner=runner)
         self.assertEqual(len(out), 1)  # the drafts come on a tap, not straight away
         summary = out[0]
         self.assertTrue(summary["html"])
@@ -172,7 +175,9 @@ class ProcessListingTests(unittest.TestCase):
             self.assertNotIn("600-123", (self.root / "listings" / name).read_text(), name)
             self.assertNotIn("600123", (self.root / "listings" / name).read_text(), name)
         self.assertEqual(runner.calls[0][1]["cwd"], str(self.root))
-        self.assertFalse([k for k in runner.calls[0][1]["env"] if k.startswith("TELEGRAM_")])
+        env = runner.calls[0][1]["env"]
+        self.assertEqual(env["PATH"], "/usr/bin")
+        self.assertFalse([k for k in env if k.startswith("TELEGRAM_") or k == "ANTHROPIC_API_KEY"])
         self.assertNotIn("ANTHROPIC_API_KEY", runner.calls[0][1]["env"])
         self.assertEqual(json.loads((self.root / "listings/001.json").read_text())["price_pln"], 118500)
         rows = process.read_rows(self.root / "listings/listings.csv")
@@ -195,12 +200,12 @@ class ProcessListingTests(unittest.TestCase):
         self.assertTrue((self.root / "listings/market.md").exists())
 
     def test_reprocessing_replaces_row_and_keeps_status(self):
-        process.process_listing(self.root, 1, model="opus", runner=FakeRunner())
+        process.process_listing(self.root, 1, settings=SETTINGS, model="opus", runner=FakeRunner())
         rows = process.read_rows(self.root / "listings/listings.csv")
         rows[1]["status"] = "contacted"
         rows[1]["first_seen"] = "2026-10-01"
         process.write_rows(self.root / "listings/listings.csv", rows)
-        process.process_listing(self.root, 1, model="opus", runner=FakeRunner())
+        process.process_listing(self.root, 1, settings=SETTINGS, model="opus", runner=FakeRunner())
         rows = process.read_rows(self.root / "listings/listings.csv")
         self.assertEqual(list(rows), [1])
         self.assertEqual(rows[1]["status"], "contacted")
@@ -209,8 +214,8 @@ class ProcessListingTests(unittest.TestCase):
     def test_index_sorted_by_score_and_zero_shown(self):
         (self.root / "inbox" / "002").mkdir()
         bad = dict(RESULT, title="Rusty", criteria_checks=[check("Rust", "missed", True)])
-        process.process_listing(self.root, 1, model="opus", runner=FakeRunner(bad))
-        process.process_listing(self.root, 2, model="opus", runner=FakeRunner())
+        process.process_listing(self.root, 1, settings=SETTINGS, model="opus", runner=FakeRunner(bad))
+        process.process_listing(self.root, 2, settings=SETTINGS, model="opus", runner=FakeRunner())
         index = (self.root / "listings/INDEX.md").read_text().splitlines()
         self.assertTrue(index[4].startswith("| 2 |"))
         self.assertIn("| 0.0 |", index[5])
@@ -218,17 +223,19 @@ class ProcessListingTests(unittest.TestCase):
     def test_seller_saved_and_repeat_seller_flagged(self):
         (self.root / "inbox" / "002").mkdir()
         (self.root / "inbox" / "003").mkdir()
-        first = process.process_listing(self.root, 1, model="opus", runner=FakeRunner())[0]["text"]
+        first = process.process_listing(self.root, 1, settings=SETTINGS, model="opus", runner=FakeRunner())[0]["text"]
         self.assertIn("Seller: Jan Kowalski", first)
         self.assertNotIn("also", first)
-        process.process_listing(self.root, 2, model="opus", runner=FakeRunner(dict(RESULT, seller_name="Anna Nowak")))
-        third = process.process_listing(self.root, 3, model="opus",
+        process.process_listing(self.root, 2, settings=SETTINGS, model="opus",
+                                runner=FakeRunner(dict(RESULT, seller_name="Anna Nowak")))
+        third = process.process_listing(self.root, 3, settings=SETTINGS, model="opus",
                                         runner=FakeRunner(dict(RESULT, seller_name="jan  KOWALSKI")))[0]["text"]
         self.assertIn("Seller: jan  KOWALSKI (also #1)", third)
         self.assertEqual(process.read_rows(self.root / "listings/listings.csv")[1]["seller"], "Jan Kowalski")
 
     def test_no_phone_on_screenshot(self):
-        out = process.process_listing(self.root, 1, model="opus", runner=FakeRunner(dict(RESULT, seller_phone=None)))
+        out = process.process_listing(self.root, 1, settings=SETTINGS, model="opus",
+                                      runner=FakeRunner(dict(RESULT, seller_phone=None)))
         self.assertIn("/phone 1 600123456 adds one", out[0]["text"])
         self.assertEqual(out[0]["buttons"][0], ("💬 WhatsApp message", "msg:1:"))
         later = process.contact_for(self.root, 1, "600 123 456")
@@ -237,71 +244,72 @@ class ProcessListingTests(unittest.TestCase):
 
     def test_google_sheet_push(self):
         pushed = []
-        os.environ["GOOGLE_SHEET_URL"] = "https://script.google.com/macros/s/x/exec"
-        self.addCleanup(os.environ.pop, "GOOGLE_SHEET_URL", None)
-        process.process_listing(self.root, 1, model="opus", runner=FakeRunner(),
+        settings = dataclasses.replace(SETTINGS, sheet_url="https://script.google.com/macros/s/x/exec")
+        process.process_listing(self.root, 1, settings=settings, model="opus", runner=FakeRunner(),
                                 pusher=lambda row, fields: pushed.append((row, fields)))
         self.assertEqual(pushed[0][0]["seller"], "Jan Kowalski")
         self.assertIn("source", pushed[0][1])
 
         def broken(row, fields):
             raise RuntimeError("wrong secret")
-        text = process.process_listing(self.root, 1, model="opus", runner=FakeRunner(), pusher=broken)[0]["text"]
+        text = process.process_listing(self.root, 1, settings=settings, model="opus", runner=FakeRunner(),
+                                       pusher=broken)[0]["text"]
         self.assertIn("Google Sheet not updated (wrong secret)", text)
         self.assertTrue((self.root / "listings/listings.csv").exists())
 
     def test_open_sheet_button_on_summary(self):
-        os.environ["GOOGLE_SHEET_LINK"] = "https://docs.google.com/spreadsheets/d/abc/edit"
-        self.addCleanup(os.environ.pop, "GOOGLE_SHEET_LINK", None)
-        summary = process.process_listing(self.root, 1, model="opus", runner=FakeRunner())[0]
+        settings = dataclasses.replace(SETTINGS, sheet_link="https://docs.google.com/spreadsheets/d/abc/edit")
+        summary = process.process_listing(self.root, 1, settings=settings, model="opus", runner=FakeRunner())[0]
         self.assertEqual(summary["buttons"][-1], ("📊 Open sheet", "https://docs.google.com/spreadsheets/d/abc/edit"))
-        os.environ.pop("GOOGLE_SHEET_LINK")
-        summary = process.process_listing(self.root, 1, model="opus", runner=FakeRunner())[0]
+        summary = process.process_listing(self.root, 1, settings=SETTINGS, model="opus", runner=FakeRunner())[0]
         self.assertNotIn("📊 Open sheet", [b[0] for b in summary["buttons"]])
 
     def test_sms_button_errors_when_there_is_no_draft(self):
-        process.process_listing(self.root, 1, model="opus", runner=FakeRunner(dict(RESULT, seller_sms="")))
+        process.process_listing(self.root, 1, settings=SETTINGS, model="opus",
+                                runner=FakeRunner(dict(RESULT, seller_sms="")))
         with self.assertRaisesRegex(process.ProcessError, "no SMS draft"):
             process.seller_text(self.root, 1, "sms")
 
     def test_no_sheet_configured_means_no_push(self):
         pushed = []
-        process.process_listing(self.root, 1, model="opus", runner=FakeRunner(),
+        process.process_listing(self.root, 1, settings=SETTINGS, model="opus", runner=FakeRunner(),
                                 pusher=lambda row, fields: pushed.append(row))
         self.assertEqual(pushed, [])
 
     def test_contact_for_errors(self):
         with self.assertRaisesRegex(process.ProcessError, "not been analysed"):
             process.contact_for(self.root, 1, "600123456")
-        process.process_listing(self.root, 1, model="opus", runner=FakeRunner())
+        process.process_listing(self.root, 1, settings=SETTINGS, model="opus", runner=FakeRunner())
         with self.assertRaisesRegex(process.ProcessError, "doesn't look like a phone number"):
             process.contact_for(self.root, 1, "12")
 
     def test_seller_not_shown(self):
-        text = process.process_listing(self.root, 1, model="opus",
+        text = process.process_listing(self.root, 1, settings=SETTINGS, model="opus",
                                        runner=FakeRunner(dict(RESULT, seller_name=None)))[0]["text"]
         self.assertNotIn("Seller:", text)
 
     def test_empty_criteria_says_so(self):
-        text = process.process_listing(self.root, 1, model="opus",
+        text = process.process_listing(self.root, 1, settings=SETTINGS, model="opus",
                                        runner=FakeRunner(dict(RESULT, criteria_checks=[])))[0]["text"]
         self.assertIn("Score – (fill in criteria.md)", text)
 
     def test_missing_values_are_reported_not_invented(self):
         data = dict(RESULT, price_pln=None, mileage_km=None)
-        text = process.process_listing(self.root, 1, model="opus", runner=FakeRunner(data))[0]["text"]
+        text = process.process_listing(self.root, 1, settings=SETTINGS, model="opus",
+                                       runner=FakeRunner(data))[0]["text"]
         self.assertIn("price not shown · Łódź", text)
 
     def test_claude_error_raises(self):
         runner = FakeRunner(stdout=json.dumps({"is_error": True, "result": "Not logged in"}))
         with self.assertRaisesRegex(process.ProcessError, "Not logged in"):
-            process.process_listing(self.root, 1, model="opus", runner=runner)
+            process.process_listing(self.root, 1, settings=SETTINGS, model="opus", runner=runner)
         with self.assertRaisesRegex(process.ProcessError, "exit 1"):
-            process.process_listing(self.root, 1, model="opus", runner=FakeRunner(stdout="", returncode=1))
+            process.process_listing(self.root, 1, settings=SETTINGS, model="opus",
+                                    runner=FakeRunner(stdout="", returncode=1))
 
     def test_unknown_listing(self):
         with self.assertRaises(process.ProcessError):
-            process.process_listing(self.root, 9, model="opus", runner=FakeRunner())
+            process.process_listing(self.root, 9, settings=SETTINGS, model="opus", runner=FakeRunner())
 
 
 if __name__ == "__main__":
