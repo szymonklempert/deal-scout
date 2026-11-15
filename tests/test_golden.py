@@ -100,9 +100,6 @@ class GoldenTests(unittest.TestCase):
         self.addCleanup(self.dir.cleanup)
         self.root = Path(self.dir.name)
         self.domain = domain.load("gadget", roots=[FIXTURES])
-        before = process.DOMAIN
-        process.use_domain(self.domain)
-        self.addCleanup(process.use_domain, before)
 
     def check(self, name, text):
         path = GOLDEN / name
@@ -121,7 +118,7 @@ class GoldenTests(unittest.TestCase):
             (folder / "notes.txt").write_text(notes + "\n", encoding="utf-8")
 
     def test_claude_code_command(self):
-        cmd = process.claude_command("007", "opus")
+        cmd = process.claude_command("007", "opus", self.domain)
         self.check("claude_command.txt", "\n".join(cmd[:2] + cmd[3:-1]) + "\n")
         self.check("prompt_claude_code.txt", cmd[2] + "\n")
         self.check("schema.json", json.dumps(json.loads(cmd[-1]), indent=2, ensure_ascii=False) + "\n")
@@ -132,7 +129,7 @@ class GoldenTests(unittest.TestCase):
         (self.root / "listings" / "market.md").write_text("# Market\n- phone: median 1.2k\n", encoding="utf-8")
         settings = dataclasses.replace(self.settings, provider="anthropic")
         client = FakeAnthropic(text=json.dumps(dict(result(), card_markdown="# #001 Widget\n- tel. 600 111 222\n")))
-        out = process.process_listing(self.root, 1, settings=settings, client=client)
+        out = process.process_listing(self.root, 1, settings=settings, domain=self.domain, client=client)
         kw = client.calls[0][1]
         content = kw["messages"][0]["content"]
         self.check("api_system.txt", kw["system"][0]["text"] + "\n")
@@ -144,7 +141,7 @@ class GoldenTests(unittest.TestCase):
         self.check("summary_api.txt", message_text(out))
         settings = dataclasses.replace(self.settings, provider="openai")
         client = FakeOpenAI(content=json.dumps(dict(result(), card_markdown="# card\n")))
-        process.process_listing(self.root, 1, settings=settings, model="gpt-x", client=client)
+        process.process_listing(self.root, 1, settings=settings, domain=self.domain, model="gpt-x", client=client)
         kw = client.calls[0]
         self.assertEqual(kw["messages"][0]["content"], self.read("api_system.txt")[:-1])
 
@@ -166,7 +163,7 @@ class GoldenTests(unittest.TestCase):
             if n == 4:
                 over.update(criteria_checks=[], seller_message="", seller_sms="", seller_name=None,
                             price_pln=None, specs=[])
-            out = process.process_listing(self.root, n, settings=self.settings, model="opus",
+            out = process.process_listing(self.root, n, settings=self.settings, domain=self.domain, model="opus",
                                           runner=FakeRunner(result(**over)))
             self.check("summary_%d.txt" % n, message_text(out))
         listings = self.root / "listings"
@@ -183,7 +180,7 @@ class GoldenTests(unittest.TestCase):
     def test_bot_transcript(self):
         api = Recorder()
         def processor(n):
-            return process.process_listing(self.root, n, settings=self.settings, model="opus",
+            return process.process_listing(self.root, n, settings=self.settings, domain=self.domain, model="opus",
                                            runner=FakeRunner(result()))
         bot = botmod.Bot(api, self.root, 1, window_seconds=180, clock=lambda: 1000.0, processor=processor,
                          contact=lambda n, phone: process.contact_for(self.root, n, phone), sheet_link=SHEET_LINK,

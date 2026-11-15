@@ -8,7 +8,8 @@ import domain  # noqa: E402
 import market  # noqa: E402
 import process  # noqa: E402
 
-CFG = domain.load("campervan").market
+CAMPERVAN = domain.load("campervan")
+CFG = CAMPERVAN.market
 
 FAM = "Sprinter W906 (2006-2018)"
 
@@ -83,8 +84,8 @@ class WriteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             listings = Path(d)
             rows = {i: dict(row(i, 80000 + i * 1000, km=100000 + i * 5000), title="t") for i in range(1, 5)}
-            process.write_rows(listings / "listings.csv", rows)
-            market.write(listings)
+            process.write_rows(listings / "listings.csv", rows, process.csv_fields(CAMPERVAN))
+            market.write(listings, CFG)
             self.assertIn("median 82.5k PLN", (listings / "market.md").read_text())
 
 

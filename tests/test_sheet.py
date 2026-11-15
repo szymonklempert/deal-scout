@@ -10,8 +10,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
 import config  # noqa: E402
 
+import domain  # noqa: E402
+import process  # noqa: E402
 import sheet  # noqa: E402
 
+CAMPERVAN = domain.load("campervan")
+FIELDS = process.csv_fields(CAMPERVAN)
 SETTINGS = config.Settings(sheet_url="https://script.google.com/macros/s/x/exec", sheet_secret="s3cret")
 
 
@@ -54,13 +58,13 @@ class SheetTests(unittest.TestCase):
         import process
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "listings.csv"
-            process.write_rows(path, {2: {"number": 2, "title": "B"}, 1: {"number": 1, "title": "A"}})
+            process.write_rows(path, {2: {"number": 2, "title": "B"}, 1: {"number": 1, "title": "A"}}, FIELDS)
             opener = FakeOpener('{"ok": true, "row": 2}')
             with contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(sheet.push_all(path, SETTINGS, opener=opener), 2)
+                self.assertEqual(sheet.push_all(path, FIELDS, SETTINGS, opener=opener), 2)
         bodies = [json.loads(r.data) for r in opener.requests]
         self.assertEqual([b["row"]["number"] for b in bodies], [1, 2])
-        self.assertEqual(bodies[0]["fields"], process.csv_fields())
+        self.assertEqual(bodies[0]["fields"], FIELDS)
 
     def test_enabled(self):
         self.assertTrue(sheet.enabled(SETTINGS))

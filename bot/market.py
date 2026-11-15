@@ -177,19 +177,27 @@ def build(rows, cfg=None, today=None):
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write(listings_dir, cfg=None):
-    import process
+def write(listings_dir, cfg: dict):
+    """Rebuild market.md in listings_dir; cfg is the domain's "market" settings."""
+    import process  # process imports market; storage moves out of process in the next step
     rows = list(process.read_rows(Path(listings_dir) / "listings.csv").values())
-    if cfg is None:
-        cfg = process.DOMAIN.market
     (Path(listings_dir) / "market.md").write_text(build(rows, cfg), encoding="utf-8")
 
 
 def main():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import process
-    write(process.ROOT / "listings")
-    print((process.ROOT / "listings" / "market.md").read_text(encoding="utf-8"))
+    import config
+
+    import domain
+    root = Path(__file__).resolve().parent.parent
+    config.load_env(root / ".env")
+    settings = config.Settings.from_env()
+    try:
+        cfg = domain.load(settings.domain).market
+    except domain.DomainError as exc:
+        sys.exit(str(exc))
+    write(root / "listings", cfg)
+    print((root / "listings" / "market.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

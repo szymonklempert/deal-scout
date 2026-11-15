@@ -1,13 +1,14 @@
 """Settings from the environment and the .env file, read once at start-up and passed to whoever needs them.
 
 Entry points call load_env() and then Settings.from_env(); everything else receives the Settings object. Nothing
-else in bot/ reads or writes os.environ (domain.py still reads DOMAIN). Standard library only.
+else in bot/ reads or writes os.environ (the active domain's name is Settings.domain). Standard library only.
 """
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+DEFAULT_DOMAIN = "campervan"
 SECRET_PREFIXES = ("TELEGRAM_",)
 SECRET_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 
@@ -52,6 +53,7 @@ class Settings:
     sheet_secret: str = field(default="", repr=False)
     sheet_link: str = ""
     data_root: str = ""  # CAMPERVAN_ROOT
+    domain: str = DEFAULT_DOMAIN
     claude_env: Mapping[str, str] = field(default_factory=dict, repr=False, compare=False)
 
     @classmethod
@@ -75,5 +77,6 @@ class Settings:
             sheet_secret=env.get("GOOGLE_SHEET_SECRET", ""),
             sheet_link=(env.get("GOOGLE_SHEET_LINK") or "").strip(),
             data_root=env.get("CAMPERVAN_ROOT") or "",
+            domain=env.get("DOMAIN") or DEFAULT_DOMAIN,
             claude_env=child_env(env),
         )

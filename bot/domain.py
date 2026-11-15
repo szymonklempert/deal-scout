@@ -12,25 +12,27 @@ Everything specific to it lives in domains/<name>/ and the code only reads it:
 The active domain is DOMAIN in .env (default: campervan). Standard library only.
 """
 import json
-import os
+from collections.abc import Iterable
 from pathlib import Path
 
-DEFAULT = "campervan"
 CODE_ROOT = Path(__file__).resolve().parent.parent
 
 
 class DomainError(Exception):
-    pass
+    """The requested domain is missing or incomplete."""
 
 
 class Domain:
-    def __init__(self, directory):
+    """One domain's settings and rule files, read from its directory."""
+
+    def __init__(self, directory: Path | str):
+        """Read domain.json and instructions.md from the directory."""
         self.dir = Path(directory)
         self.name = self.dir.name
-        self.rel = "domains/%s" % self.name  # how Claude Code finds the files from the project folder
+        self.rel = f"domains/{self.name}"  # how Claude Code finds the files from the project folder
         path = self.dir / "domain.json"
         if not path.exists():
-            raise DomainError("no %s: see domains/README.md" % path)
+            raise DomainError(f"no {path}: see domains/README.md")
         cfg = json.loads(path.read_text(encoding="utf-8"))
         self.item = cfg["item"]                                  # "used campervan"
         self.unit = cfg.get("unit", "item")                       # "van": "which van it is about"
@@ -43,15 +45,14 @@ class Domain:
         instructions = self.dir / "instructions.md"
         self.instructions = instructions.read_text(encoding="utf-8").strip() if instructions.exists() else ""
 
-    def has_criteria(self):
+    def has_criteria(self) -> bool:
+        """Whether the buyer has written criteria.md (it is git-ignored, so it may be missing)."""
         return (self.dir / "criteria.md").exists()
 
 
-def load(name=None, roots=None):
-    """The domain called `name` (default: DOMAIN from the environment, else campervan), looked up in each root's
-    domains/ folder in turn (the data folder first, then the code's own)."""
-    name = name or os.environ.get("DOMAIN") or DEFAULT
+def load(name: str, roots: Iterable[Path | str] | None = None) -> Domain:
+    """Load the domain called `name` from each root's domains/ folder in turn (data folder first, then the code's)."""
     for root in list(roots or []) + [CODE_ROOT]:
         if (Path(root) / "domains" / name / "domain.json").exists():
             return Domain(Path(root) / "domains" / name)
-    raise DomainError("domain %r not found in domains/" % name)
+    raise DomainError(f"domain {name!r} not found in domains/")

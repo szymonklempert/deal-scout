@@ -11,7 +11,7 @@ from types import SimpleNamespace as Ns
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import config  # noqa: E402
-from test_process import RESULT  # noqa: E402
+from test_process import CAMPERVAN, RESULT  # noqa: E402
 
 import process  # noqa: E402
 import providers  # noqa: E402
@@ -72,7 +72,7 @@ class ProviderTests(unittest.TestCase):
 
     def run_listing(self, provider, client, model=None, **overrides):
         settings = dataclasses.replace(SETTINGS, provider=provider, **overrides)
-        return process.process_listing(self.root, 1, settings=settings, model=model, client=client)
+        return process.process_listing(self.root, 1, settings=settings, domain=CAMPERVAN, model=model, client=client)
 
     def test_default_is_claude_code_on_the_subscription(self):
         self.assertEqual(providers.name(SETTINGS), "claude-code")
@@ -184,12 +184,12 @@ class SchemaTests(unittest.TestCase):
             elif isinstance(node, list):
                 for i, v in enumerate(node):
                     walk(v, "%s[%d]" % (path, i))
-        walk(process.schema(card=True))
+        walk(process.schema(CAMPERVAN, card=True))
 
     def test_scores_are_clamped(self):
         data = {"specs": [{"name": "Year", "value": "2014", "score": 14}, {"name": "Mileage", "value": "x",
                                                                           "score": -2}]}
-        got = {n: s for n, _, s in process.ordered_specs(data)}
+        got = {n: s for n, _, s in process.ordered_specs(data, CAMPERVAN.specs)}
         self.assertEqual((got["Year"], got["Mileage"]), (10, 0))
 
 

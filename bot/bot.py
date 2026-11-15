@@ -21,6 +21,11 @@ from pathlib import Path
 
 from config import Settings, load_env
 
+import domain
+import process
+import providers
+import sheet
+
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("dealscout")
 log.addHandler(logging.NullHandler())  # quiet unless setup_logging() adds real handlers
@@ -433,13 +438,13 @@ def main():
     if not settings.telegram_token:
         sys.exit("TELEGRAM_BOT_TOKEN is not set. Copy .env.example to .env and fill it in.")
     mode = settings.analysis
-    # Imported here, not at the top: process loads the active domain at import time (moves up with the domain step).
-    import process
-    import providers
-    import sheet
+    try:
+        d = domain.load(settings.domain)
+    except domain.DomainError as exc:
+        sys.exit(str(exc))
 
     def processor(n):
-        return process.process_listing(ROOT, n, settings=settings)
+        return process.process_listing(ROOT, n, settings=settings, domain=d)
 
     def contact(n, phone):
         return process.contact_for(ROOT, n, phone)
@@ -456,7 +461,7 @@ def main():
         engine = "%s, model %s" % (provider, providers.model_for(provider, settings))
     except providers.ProviderError as exc:
         engine = "misconfigured: %s" % exc
-    log.info("Domain: %s. Analysis: %s (%s). Google Sheet %s", process.DOMAIN.name, mode if analyse else "off",
+    log.info("Domain: %s. Analysis: %s (%s). Google Sheet %s", d.name, mode if analyse else "off",
              engine, "on" if settings.sheet_url else "off")
     bot.run()
 

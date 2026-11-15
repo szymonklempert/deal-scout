@@ -30,18 +30,12 @@ import market
 import providers
 import sheet
 import usage
+from domain import Domain
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("dealscout")
 log.addHandler(logging.NullHandler())  # quiet unless setup_logging() adds real handlers
 
-DOMAIN = domains.load()
-
-
-def use_domain(d):
-    """Switch the active domain (the bot uses one per run; tests switch it)."""
-    global DOMAIN
-    DOMAIN = d
 
 
 FACT = {
@@ -67,10 +61,9 @@ CHECK = {
 }
 
 
-def schema(d=None, card=False):
+def schema(d: Domain, card: bool = False) -> dict:
     """The JSON shape the model must return: fixed fields plus the domain's specs and categories. With card=True (API
     providers, which can't write files) it also carries the card's text."""
-    d = d or DOMAIN
     spec = {
         "type": "object",
         "additionalProperties": False,
@@ -178,9 +171,8 @@ Then return the structured result:
 Put the seller's name only in the card's seller line and in seller_name. Never write phone numbers into any file."""
 
 
-def prompt(nnn, d=None, api=False):
+def prompt(nnn: str, d: Domain, api: bool = False) -> str:
     """The instructions. Claude Code reads the files itself; for API providers the files are appended (api_files)."""
-    d = d or DOMAIN
     cats = "".join("- %s: one of the allowed values%s; \"unknown\" when the listing doesn't let you tell.\n"
                    % (key, ": " + cat["help"] if cat.get("help") else "") for key, cat in d.categories.items())
     return ((INTRO_API if api else INTRO_CLAUDE_CODE) + RULES).format(
@@ -191,8 +183,7 @@ def prompt(nnn, d=None, api=False):
         title_example=', e.g. "%s"' % d.title_example if d.title_example else "")
 
 
-def csv_fields(d=None):
-    d = d or DOMAIN
+def csv_fields(d: Domain) -> list[str]:
     return (["number", "title", "seller", "source", "location", "link", "price_pln", "price_net", "model"]
             + list(d.categories)
             + ["year", "mileage_km", "fair_price_low", "fair_price_high", "score", "specs_avg", "met", "missed",
@@ -205,7 +196,7 @@ class ProcessError(Exception):
     pass
 
 
-def claude_command(nnn, model, d=None, claude_bin="claude"):
+def claude_command(nnn: str, model: str, d: Domain, claude_bin: str = "claude") -> list[str]:
     """The headless Claude Code call: read anything in the project, write only into listings/, no shell, no web."""
     return [
         claude_bin, "-p", prompt(nnn, d),
@@ -219,10 +210,10 @@ def claude_command(nnn, model, d=None, claude_bin="claude"):
     ]
 
 
-def run_claude(root, nnn, model, settings: Settings, runner=subprocess.run, timeout=900):
+def run_claude(root, nnn, model, d: Domain, settings: Settings, runner=subprocess.run, timeout=900):
     try:
         env = dict(settings.claude_env)  # without the bot token and Anthropic keys, see config.child_env
-        command = claude_command(nnn, model, claude_bin=settings.claude_bin)
+        command = claude_command(nnn, model, d, claude_bin=settings.claude_bin)
         proc = runner(command, cwd=str(root), env=env, capture_output=True, text=True, timeout=timeout)
     except FileNotFoundError as exc:
         raise ProcessError("Claude Code (`claude`) is not installed or not on PATH; set CLAUDE_BIN in .env") from exc
@@ -251,10 +242,9 @@ def run_claude(root, nnn, model, settings: Settings, runner=subprocess.run, time
     return out["structured_output"]
 
 
-def api_request(root, nnn, d=None):
+def api_request(root, nnn, d: Domain):
     """(system, user_text, photo paths) for an API provider. The system prompt holds the instructions and the domain's
     files (the same for every listing, so providers can cache them); the listing goes in the user turn."""
-    d = d or DOMAIN
     files = ((["criteria.md"] if d.has_criteria() else []) + ["checklist.md", "card-template.md"]
              + list(d.reference_files))
     parts = [prompt(nnn, d, api=True)]
@@ -275,7 +265,7 @@ def api_request(root, nnn, d=None):
     return "\n".join(parts), "\n\n".join(user), photos
 
 
-def analyse(root, nnn, settings: Settings, runner=subprocess.run, client=None):
+def analyse(root, nnn, d: Domain, settings: Settings, runner=subprocess.run, client=None):
     """Run the analysis with PROVIDER from .env. API providers return the card's text, written here."""
     try:
         provider = providers.name(settings)
@@ -283,11 +273,11 @@ def analyse(root, nnn, settings: Settings, runner=subprocess.run, client=None):
     except providers.ProviderError as exc:
         raise ProcessError(str(exc)) from exc
     if provider == "claude-code":
-        return run_claude(root, nnn, model, settings, runner=runner)
-    system, user_text, photos = api_request(root, nnn)
+        return run_claude(root, nnn, model, d, settings, runner=runner)
+    system, user_text, photos = api_request(root, nnn, d)
     try:
         data, stats = providers.call(provider, model, system, user_text, providers.image_blocks(photos),
-                                     schema(card=True), settings, client=client)
+                                     schema(d, card=True), settings, client=client)
     except Exception as exc:  # ProviderError or an SDK error (auth, rate limit, network)
         usage.record_api(root, int(nnn), False, provider, model, {})
         raise ProcessError("%s: %s" % (provider, exc)) from exc
@@ -311,11 +301,11 @@ def scrub_phone(path, raw):
         path.write_text(cleaned, encoding="utf-8")
 
 
-def ordered_specs(data):
+def ordered_specs(data: dict, specs: list[str]) -> list[tuple[str, str, int | None]]:
     """[(name, value, score)] for every spec of the domain, in order; anything Claude left out counts as not shown."""
     got = {s.get("name"): s for s in data.get("specs") or []}
     out = []
-    for name in DOMAIN.specs:
+    for name in specs:
         s = got.get(name) or {}
         value = (s.get("value") or "").strip() or "not shown"
         score = s.get("score") if value.lower() != "not shown" else None
@@ -325,8 +315,8 @@ def ordered_specs(data):
     return out
 
 
-def specs_avg(data):
-    scores = [s for _, _, s in ordered_specs(data) if isinstance(s, (int, float))]
+def specs_avg(data, specs):
+    scores = [s for _, _, s in ordered_specs(data, specs) if isinstance(s, (int, float))]
     return round(sum(scores) / len(scores), 1) if scores else None
 
 
@@ -351,12 +341,12 @@ def clean(criterion):
     return rest.strip() if sep and head.strip().lower() in ("deal breaker", "deal breakers") else criterion
 
 
-def csv_row(n, data, old=None, link=""):
+def csv_row(n, data, d: Domain, old=None, link=""):
     old = old or {}
     checks = data.get("criteria_checks") or []
     count = lambda r: sum(1 for c in checks if c["result"] == r)  # noqa: E731
     s = score(checks)
-    avg = specs_avg(data)
+    avg = specs_avg(data, d.specs)
     row = {
         "number": n,
         "title": data.get("title", ""),
@@ -385,9 +375,9 @@ def csv_row(n, data, old=None, link=""):
         "first_seen": old.get("first_seen") or time.strftime("%Y-%m-%d"),
         "processed": time.strftime("%Y-%m-%d %H:%M"),
     }
-    for key in DOMAIN.categories:
+    for key in d.categories:
         row[key] = data.get(key) or ""
-    for name, value, sc in ordered_specs(data):
+    for name, value, sc in ordered_specs(data, d.specs):
         row[name] = value if sc is None else "%s (%d/10)" % (value, sc)
     return row
 
@@ -403,10 +393,10 @@ def read_rows(path):
     return rows
 
 
-def write_rows(path, rows):
+def write_rows(path, rows, fields: list[str]):
     """utf-8-sig so Excel shows Polish letters correctly; Numbers and Google Sheets open it too."""
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=csv_fields(), extrasaction="ignore")
+        w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
         w.writeheader()
         for n in sorted(rows):
             w.writerow(rows[n])
@@ -530,7 +520,7 @@ def dot(score):
     return "🟢" if score >= 7 else "🟡" if score >= 4 else "🔴"
 
 
-def summary_text(n, data, row, others=(), phone=None):
+def summary_text(n, data, row, specs: list[str], others=(), phone=None):
     """Telegram HTML: header, the fixed spec list (one line each, with a score), then flags and contact."""
     price = "<b>%s PLN</b>" % fmt_int(data["price_pln"]) if data.get("price_pln") is not None else "price not shown"
     where = [price] + [esc(data[k]) for k in ("location", "source") if data.get(k)]
@@ -545,12 +535,12 @@ def summary_text(n, data, row, others=(), phone=None):
     if data.get("summary"):
         head.append("<i>%s</i>" % esc(data["summary"]))
 
-    specs = []
-    for name, value, s in ordered_specs(data):
+    spec_lines = []
+    for name, value, s in ordered_specs(data, specs):
         if s is None:
-            specs.append("%s %s: <i>%s</i>" % (dot(s), esc(name), esc(value)))
+            spec_lines.append("%s %s: <i>%s</i>" % (dot(s), esc(name), esc(value)))
         else:
-            specs.append("%s %s: %s · %d/10" % (dot(s), esc(name), esc(value), s))
+            spec_lines.append("%s %s: %s · %d/10" % (dot(s), esc(name), esc(value), s))
 
     tail = []
     if row["deal_breakers_hit"]:
@@ -560,10 +550,11 @@ def summary_text(n, data, row, others=(), phone=None):
     if data.get("seller_message"):
         tail.append(contact_line(n, data, phone))
     tail.append("📄 listings/%03d.md" % n)
-    return "\n".join(head) + "\n\n" + "\n".join(specs) + "\n\n" + "\n".join(tail)
+    return "\n".join(head) + "\n\n" + "\n".join(spec_lines) + "\n\n" + "\n".join(tail)
 
 
-def process_listing(root, n, *, settings: Settings, model=None, runner=subprocess.run, pusher=None, client=None):
+def process_listing(root, n, *, settings: Settings, domain: Domain, model=None, runner=subprocess.run, pusher=None,
+                   client=None):
     root = Path(root)
     nnn = "%03d" % n
     if not (root / "inbox" / nnn).is_dir():
@@ -574,7 +565,7 @@ def process_listing(root, n, *, settings: Settings, model=None, runner=subproces
         settings = dataclasses.replace(settings, model=model)
     if pusher is None:
         pusher = functools.partial(sheet.push, settings=settings)
-    data = analyse(root, nnn, settings, runner=runner, client=client)
+    data = analyse(root, nnn, domain, settings, runner=runner, client=client)
     raw_phone = data.pop("seller_phone", None)
     phone = normalise_phone(raw_phone)  # used for the button only, never saved
     scrub_phone(listings / (nnn + ".md"), raw_phone)
@@ -582,17 +573,17 @@ def process_listing(root, n, *, settings: Settings, model=None, runner=subproces
     rows = read_rows(listings / "listings.csv")
     links = root / "inbox" / nnn / "links.txt"
     link = links.read_text(encoding="utf-8").split()[0] if links.exists() and links.read_text().split() else ""
-    rows[n] = csv_row(n, data, old=rows.get(n), link=link)
-    write_rows(listings / "listings.csv", rows)
+    rows[n] = csv_row(n, data, domain, old=rows.get(n), link=link)
+    write_rows(listings / "listings.csv", rows, csv_fields(domain))
     write_index(listings / "INDEX.md", rows)
     try:
-        market.write(listings)
+        market.write(listings, domain.market)
     except Exception:  # statistics are a bonus; never lose an analysis over them
         log.exception("#%s market.md not rebuilt", nnn)
-    summary = summary_text(n, data, rows[n], same_seller(n, rows), phone)
+    summary = summary_text(n, data, rows[n], domain.specs, same_seller(n, rows), phone)
     if sheet.enabled(settings):
         try:
-            pusher(rows[n], csv_fields())
+            pusher(rows[n], csv_fields(domain))
             log.info("#%s copied to the Google Sheet", nnn)
         except Exception as exc:  # the CSV is saved either way; say so and carry on
             log.error("#%s Google Sheet not updated: %s", nnn, exc)
@@ -626,7 +617,11 @@ def main(argv):
         settings = dataclasses.replace(settings, sheet_url="")
         print("(CAMPERVAN_ROOT is another folder: not copying to the Google Sheet)", file=sys.stderr)
     try:
-        out = process_listing(root, int(argv[1]), settings=settings)
+        d = domains.load(settings.domain)
+    except domains.DomainError as exc:
+        sys.exit(str(exc))
+    try:
+        out = process_listing(root, int(argv[1]), settings=settings, domain=d)
         plain = lambda t: html.unescape(re.sub(r"</?[biu]>", "", t))  # noqa: E731
         print("\n\n-----\n".join(plain(m["text"]) + "".join("\n[%s: %s]" % b for b in m.get("buttons", []))
                                    for m in out))

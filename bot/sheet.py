@@ -12,6 +12,8 @@ from pathlib import Path
 
 from config import Settings, load_env
 
+import domain
+
 
 def enabled(settings: Settings) -> bool:
     """Whether GOOGLE_SHEET_URL is set."""
@@ -58,24 +60,28 @@ def push(row, fields, settings: Settings, opener=urllib.request.urlopen):
         raise RuntimeError(out.get("error") or "the sheet script reported an error")
 
 
-def push_all(csv_path, settings: Settings, opener=urllib.request.urlopen):
+def push_all(csv_path, fields: list[str], settings: Settings, opener=urllib.request.urlopen):
     """Copy every row of listings.csv to the sheet, in number order; returns how many were copied."""
-    import process
+    import process  # process imports sheet; storage moves out of process in the next step
     rows = process.read_rows(csv_path)
     for n in sorted(rows):
-        push(rows[n], process.csv_fields(), settings, opener=opener)
+        push(rows[n], fields, settings, opener=opener)
         print("#%d copied" % n)
     return len(rows)
 
 
 def main():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import process
+    import process  # process imports sheet at module level, so importing it at the top would be a cycle
     load_env(process.ROOT / ".env")
     settings = Settings.from_env()
     if not enabled(settings):
         sys.exit("GOOGLE_SHEET_URL is not set in .env (see deploy/google-sheet.md)")
-    count = push_all(process.ROOT / "listings" / "listings.csv", settings)
+    try:
+        d = domain.load(settings.domain)
+    except domain.DomainError as exc:
+        sys.exit(str(exc))
+    count = push_all(process.ROOT / "listings" / "listings.csv", process.csv_fields(d), settings)
     print("Done: %d listing(s)." % count)
 
 

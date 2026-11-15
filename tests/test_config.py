@@ -29,6 +29,11 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual((s.provider, s.effort, s.analysis, s.claude_bin), ("claude-code", "medium", "off", "claude"))
         self.assertEqual((s.group_window_seconds, s.allowed_user_id, s.model, s.claude_model), (180, None, "", ""))
 
+    def test_domain_defaults_to_campervan(self):
+        self.assertEqual(config.Settings.from_env({}).domain, "campervan")
+        self.assertEqual(config.Settings.from_env({"DOMAIN": ""}).domain, "campervan")
+        self.assertEqual(config.Settings.from_env({"DOMAIN": "tv"}).domain, "tv")
+
     def test_provider_is_normalised_but_not_validated(self):
         self.assertEqual(config.Settings.from_env({"PROVIDER": " OpenAI "}).provider, "openai")
         self.assertEqual(config.Settings.from_env({"PROVIDER": ""}).provider, "claude-code")
