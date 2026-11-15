@@ -111,7 +111,8 @@ class BotTests(unittest.TestCase):
         bot, _ = self.analysing_bot()
         bot.handle_update(msg(photo="a"))
         bot.handle_update(msg(text="/done"))
-        self.assertEqual(self.api.sent[:2], ["#1: 1 photo(s), 0 link(s) saved.", "#1: analysing, usually about a minute..."])
+        self.assertEqual(self.api.sent[:2], ["#1: 1 photo(s), 0 link(s) saved.",
+                                             "#1: analysing, usually about a minute..."])
 
     def test_new_listing_confirms_the_previous_one(self):
         self.bot.handle_update(msg(photo="a"))
@@ -228,7 +229,8 @@ class BotTests(unittest.TestCase):
 
     def test_tap_on_message_button_sends_the_draft(self):
         bot, calls = self.tap_bot()
-        bot.handle_update({"update_id": 5, "callback_query": {"id": "c1", "from": {"id": 1}, "data": "msg:7:48600123456"}})
+        bot.handle_update({"update_id": 5, "callback_query": {"id": "c1", "from": {"id": 1},
+                                                              "data": "msg:7:48600123456"}})
         bot.handle_update({"update_id": 6, "callback_query": {"id": "c2", "from": {"id": 1}, "data": "sms:7"}})
         self.assertEqual(calls, [(7, "msg", "48600123456"), (7, "sms", None)])
         self.assertEqual(self.api.sent, ["msg for #7", "sms for #7"])

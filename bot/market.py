@@ -5,9 +5,10 @@
 
 It groups the items in listings/listings.csv the way the domain's domain.json says (e.g. model family, year band,
 mileage band, build) and reports the asking prices per group (median and the middle half). An item reposted in
-several groups or reposted later counts once, at its latest price, and price drops are counted. Listings without a price, and prices the
-analysis scored 0 (suspiciously low, the scam pattern), are left out. Groups with fewer than MIN_N items are not
-shown. It never edits knowledge.md: it flags where the "fair" ranges in your reference files and the asking prices disagree, and you decide.
+several groups or reposted later counts once, at its latest price, and price drops are counted. Listings without a
+price, and prices the analysis scored 0 (suspiciously low, the scam pattern), are left out. Groups with fewer than
+MIN_N items are not shown. It never edits knowledge.md: it flags where the "fair" ranges in your reference files and
+the asking prices disagree, and you decide.
 Standard library only.
 """
 import re
@@ -167,7 +168,8 @@ def build(rows, cfg=None, today=None):
         lines.append("## " + " · ".join(g))
         lines.append(group_line("all", top[g]))
         for d in sorted(x for x in detail if x[:width] == g and len(detail[x]) < len(top[g])):
-            lines.append(group_line(", ".join("%s %s" % (v, k) for k, v in zip(db, d[width:])), detail[d]))
+            label = ", ".join("%s %s" % (v, k) for k, v in zip(db, d[width:], strict=False))
+            lines.append(group_line(label, detail[d]))
         for f in sorted(x for x in finest if x[:width] == g):
             if len(finest[f]) < len(top[g]):
                 lines.append(group_line(", ".join(f[width:]), finest[f]))

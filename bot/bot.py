@@ -87,7 +87,8 @@ class TelegramAPI:
         return body["result"]
 
     def get_updates(self, offset, wait=30):
-        return self.call("getUpdates", {"offset": offset, "timeout": wait, "allowed_updates": ["message", "callback_query"]}, timeout=wait + 15)
+        params = {"offset": offset, "timeout": wait, "allowed_updates": ["message", "callback_query"]}
+        return self.call("getUpdates", params, timeout=wait + 15)
 
     def send_message(self, chat_id, text, buttons=None, html=False):
         params = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
@@ -186,7 +187,7 @@ class Bot:
         self.api.send_message(chat_id, text)
 
     def current_listing(self, media_group, force_new=False):
-        """Which listing a new message belongs to: the current one if it is recent (or the same album), else a new one."""
+        """Which listing a new message belongs to: the current one if recent (or the same album), else a new one."""
         now = self.clock()
         cur = self.state.get("current")
         same_album = bool(cur and media_group and cur.get("media_group") == media_group)

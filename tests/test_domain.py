@@ -7,10 +7,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from test_process import FakeRunner  # noqa: E402
+
 import domain  # noqa: E402
 import market  # noqa: E402
 import process  # noqa: E402
-from test_process import FakeRunner  # noqa: E402
 
 TV = {"item": "used TV", "unit": "TV", "seller_language": "English", "title_example": "LG OLED C2 55\"",
       "reference_files": {"panels.md": "panel types and burn-in risk"},

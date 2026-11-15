@@ -49,8 +49,9 @@ def push(row, fields, opener=urllib.request.urlopen):
         raw = resp.read().decode("utf-8", "replace")
     try:
         out = json.loads(raw)
-    except ValueError:
-        raise RuntimeError("the sheet script did not answer with JSON (check the web app URL and access setting)")
+    except ValueError as exc:
+        raise RuntimeError("the sheet script did not answer with JSON (check the web app URL and access "
+                           "setting)") from exc
     if not out.get("ok"):
         raise RuntimeError(out.get("error") or "the sheet script reported an error")
 

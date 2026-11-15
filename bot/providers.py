@@ -73,8 +73,8 @@ def call_anthropic(model, system, user_text, images, schema, client=None):
     if client is None:
         try:
             import anthropic
-        except ImportError:
-            raise ProviderError("PROVIDER=anthropic needs the SDK: pip install anthropic")
+        except ImportError as exc:
+            raise ProviderError("PROVIDER=anthropic needs the SDK: pip install anthropic") from exc
         client = anthropic.Anthropic()  # ANTHROPIC_API_KEY from the environment
     content = [{"type": "image", "source": {"type": "base64", "media_type": m, "data": d}} for m, d in images]
     content.append({"type": "text", "text": user_text})
@@ -116,8 +116,8 @@ def call_openai(model, system, user_text, images, schema, base_url=None, api_key
     if client is None:
         try:
             import openai
-        except ImportError:
-            raise ProviderError("this provider needs the SDK: pip install openai")
+        except ImportError as exc:
+            raise ProviderError("this provider needs the SDK: pip install openai") from exc
         client = openai.OpenAI(base_url=base_url, api_key=api_key) if base_url else openai.OpenAI()
     content = [{"type": "image_url", "image_url": {"url": "data:%s;base64,%s" % (m, d)}} for m, d in images]
     content.append({"type": "text", "text": user_text})
@@ -146,8 +146,8 @@ def call_openai(model, system, user_text, images, schema, base_url=None, api_key
 def parse_json(text):
     try:
         data = json.loads(text)
-    except ValueError:
-        raise ProviderError("the model did not return valid JSON")
+    except ValueError as exc:
+        raise ProviderError("the model did not return valid JSON") from exc
     if not isinstance(data, dict):
         raise ProviderError("the model returned JSON that is not an object")
     return data

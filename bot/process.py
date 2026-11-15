@@ -224,16 +224,17 @@ def run_claude(root, nnn, model, runner=subprocess.run, timeout=900):
                if not k.startswith("TELEGRAM_") and k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
         proc = runner(claude_command(nnn, model), cwd=str(root), env=env, capture_output=True, text=True,
                       timeout=timeout)
-    except FileNotFoundError:
-        raise ProcessError("Claude Code (`claude`) is not installed or not on PATH; set CLAUDE_BIN in .env")
-    except subprocess.TimeoutExpired:
-        raise ProcessError("Claude took longer than %d s" % timeout)
+    except FileNotFoundError as exc:
+        raise ProcessError("Claude Code (`claude`) is not installed or not on PATH; set CLAUDE_BIN in .env") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise ProcessError("Claude took longer than %d s" % timeout) from exc
     try:
         out = json.loads(proc.stdout)
-    except ValueError:
+    except ValueError as exc:
         log.error("#%s claude exit %s, no JSON. stderr: %s", nnn, proc.returncode, (proc.stderr or "")[-2000:])
         usage.record(root, int(nnn), {}, ok=False)
-        raise ProcessError("Claude failed (exit %s): %s" % (proc.returncode, (proc.stderr or proc.stdout)[-300:]))
+        raise ProcessError("Claude failed (exit %s): %s"
+                           % (proc.returncode, (proc.stderr or proc.stdout)[-300:])) from exc
     # Only metadata goes to the log, never the listing content (names, phone numbers).
     log.info("#%s claude: %s, %.0f s, %s turns, est. $%.2f, %d permission denial(s) %s", nnn, out.get("subtype"),
              (out.get("duration_ms") or 0) / 1000, out.get("num_turns"), out.get("total_cost_usd") or 0,
@@ -254,7 +255,8 @@ def api_request(root, nnn, d=None):
     """(system, user_text, photo paths) for an API provider. The system prompt holds the instructions and the domain's
     files (the same for every listing, so providers can cache them); the listing goes in the user turn."""
     d = d or DOMAIN
-    files = (["criteria.md"] if d.has_criteria() else []) + ["checklist.md", "card-template.md"] + list(d.reference_files)
+    files = ((["criteria.md"] if d.has_criteria() else []) + ["checklist.md", "card-template.md"]
+             + list(d.reference_files))
     parts = [prompt(nnn, d, api=True)]
     for name in files:
         path = d.dir / name
@@ -279,7 +281,7 @@ def analyse(root, nnn, runner=subprocess.run, client=None):
         provider = providers.name()
         model = providers.model_for(provider)
     except providers.ProviderError as exc:
-        raise ProcessError(str(exc))
+        raise ProcessError(str(exc)) from exc
     if provider == "claude-code":
         return run_claude(root, nnn, model, runner=runner)
     system, user_text, photos = api_request(root, nnn)
@@ -288,7 +290,7 @@ def analyse(root, nnn, runner=subprocess.run, client=None):
                                      schema(card=True), client=client)
     except Exception as exc:  # ProviderError or an SDK error (auth, rate limit, network)
         usage.record_api(root, int(nnn), False, provider, model, {})
-        raise ProcessError("%s: %s" % (provider, exc))
+        raise ProcessError("%s: %s" % (provider, exc)) from exc
     if stats.get("cost_usd") is None:
         stats["cost_usd"] = providers.price(stats["input_tokens"], stats["output_tokens"])
     usage.record_api(root, int(nnn), True, provider, model, stats)

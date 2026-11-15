@@ -16,11 +16,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "bot"))
 sys.path.insert(0, str(HERE))
+from test_process import FakeRunner  # noqa: E402
+from test_providers import FakeAnthropic, FakeOpenAI  # noqa: E402
+
 import bot as botmod  # noqa: E402
 import domain  # noqa: E402
 import process  # noqa: E402
-from test_process import FakeRunner  # noqa: E402
-from test_providers import FakeAnthropic, FakeOpenAI  # noqa: E402
 
 GOLDEN = HERE / "golden"
 FIXTURES = HERE / "fixtures"
@@ -188,7 +189,8 @@ class GoldenTests(unittest.TestCase):
 
     def test_bot_transcript(self):
         api = Recorder()
-        processor = lambda n: process.process_listing(self.root, n, model="opus", runner=FakeRunner(result()))  # noqa: E731,E501
+        def processor(n):
+            return process.process_listing(self.root, n, model="opus", runner=FakeRunner(result()))
         bot = botmod.Bot(api, self.root, 1, window_seconds=180, clock=lambda: 1000.0, processor=processor,
                          contact=lambda n, phone: process.contact_for(self.root, n, phone), sheet_link=SHEET_LINK,
                          seller_text=lambda n, kind, phone: process.seller_text(self.root, n, kind, phone))

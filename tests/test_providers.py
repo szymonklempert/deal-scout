@@ -6,14 +6,15 @@ import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
-from types import SimpleNamespace as NS
+from types import SimpleNamespace as Ns
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from test_process import RESULT  # noqa: E402
+
 import process  # noqa: E402
 import providers  # noqa: E402
 import usage  # noqa: E402
-from test_process import RESULT  # noqa: E402
 
 ENV = ("PROVIDER", "MODEL", "CLAUDE_MODEL", "EFFORT", "PRICE_PER_MTOK", "OPENROUTER_API_KEY", "GOOGLE_SHEET_URL",
        "GOOGLE_SHEET_LINK")
@@ -27,35 +28,35 @@ def answer(**extra):
 class FakeAnthropic:
     def __init__(self, text=None, stop_reason="end_turn"):
         self.calls = []
-        msg = NS(stop_reason=stop_reason, model="claude-opus-5-5", stop_details=NS(category="cyber"),
-                 content=[NS(type="thinking", thinking=""), NS(type="text", text=text or answer())],
-                 usage=NS(input_tokens=1200, cache_read_input_tokens=8000, cache_creation_input_tokens=0,
+        msg = Ns(stop_reason=stop_reason, model="claude-opus-5-5", stop_details=Ns(category="cyber"),
+                 content=[Ns(type="thinking", thinking=""), Ns(type="text", text=text or answer())],
+                 usage=Ns(input_tokens=1200, cache_read_input_tokens=8000, cache_creation_input_tokens=0,
                           output_tokens=5000))
 
         def stream(kind):
             @contextmanager
             def run(**kw):
                 self.calls.append((kind, kw))
-                yield NS(get_final_message=lambda: msg)
+                yield Ns(get_final_message=lambda: msg)
             return run
 
-        self.messages = NS(stream=stream("plain"))
-        self.beta = NS(messages=NS(stream=stream("beta")))
+        self.messages = Ns(stream=stream("plain"))
+        self.beta = Ns(messages=Ns(stream=stream("beta")))
 
 
 class FakeOpenAI:
     def __init__(self, content=None, refusal=None, finish_reason="stop", cost=None):
         self.calls = []
-        usage_ = NS(prompt_tokens=9000, completion_tokens=4000, prompt_tokens_details=NS(cached_tokens=6000))
+        usage_ = Ns(prompt_tokens=9000, completion_tokens=4000, prompt_tokens_details=Ns(cached_tokens=6000))
         if cost is not None:
             usage_.cost = cost
-        resp = NS(model="some-model", usage=usage_, choices=[NS(
-            finish_reason=finish_reason, message=NS(content=content or answer(), refusal=refusal))])
+        resp = Ns(model="some-model", usage=usage_, choices=[Ns(
+            finish_reason=finish_reason, message=Ns(content=content or answer(), refusal=refusal))])
 
         def create(**kw):
             self.calls.append(kw)
             return resp
-        self.chat = NS(completions=NS(create=create))
+        self.chat = Ns(completions=Ns(create=create))
 
 
 class ProviderTests(unittest.TestCase):
