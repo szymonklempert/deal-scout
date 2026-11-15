@@ -4,3 +4,5 @@ inbox/
 listings/
 __pycache__/
 *.pyc
+logs/
+domains/*/criteria.md

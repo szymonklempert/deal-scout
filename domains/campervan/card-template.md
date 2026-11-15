@@ -1,7 +1,8 @@
 # #NNN  <short title>
 
-- Source link(s): 
-- Seen on: <date>   Seller type: <private / dealer / unknown>   Location: 
+- Posted in: <Facebook group name / Marketplace / portal, or "not shown">   Link(s): 
+- Seller: <name as shown, or "not shown">   Seller type: <private / dealer / unknown>
+- Seen on: <date>   Location: 
 - Status: new | contacted | viewed | rejected | bought
 
 ## Facts (as read from the screenshots; check the numbers)
@@ -18,7 +19,7 @@
 | Documents mentioned (service book, invoices, registration as camper) | | |
 
 ## Fit against criteria.md
-Score x/10. Meets: ... Misses: ... Deal breakers hit: ...
+Meets: ... Misses: ... Unknown: ... Deal breakers hit: ... (no numeric score here: bot/process.py calculates it)
 
 ## Red flags and gaps
 - 

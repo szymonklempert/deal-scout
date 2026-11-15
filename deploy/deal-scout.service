@@ -1,0 +1,14 @@
+# systemd user service. Copy to ~/.config/systemd/user/deal-scout.service on the Linux PC.
+[Unit]
+Description=deal-scout Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/deal-scout
+ExecStart=/usr/bin/python3 %h/deal-scout/bot/bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

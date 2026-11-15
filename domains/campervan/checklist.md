@@ -6,9 +6,10 @@ current rules. Confirm them before relying on them.
 ## Paperwork and legal
 - VIN on the listing, plate and first registration date, to look up the vehicle history on the official Polish service (historiapojazdu.gov.pl) (verify the exact inputs it asks for).
 - Is the conversion registered as a camper in the registration document, with the body type changed? A van converted without registration can cause trouble at inspection and with insurance (verify).
+- Registered seats (S.1 in the registration document) against the number of people travelling; seats fitted are not seats registered.
 - Payload: gross vehicle weight (DMC) minus empty weight. Many conversions leave little capacity for people, water and gear.
 - Is the weight within what my licence allows (see criteria.md)?
-- Seller is the registered owner; invoices or a purchase contract for the conversion work; service book.
+- Seller is the registered owner (the name in the card matches the registration document and their ID); invoices or a purchase contract for the conversion work; service book.
 - Import: origin country, whether the car was registered abroad, odometer plausibility.
 
 ## Base vehicle

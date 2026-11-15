@@ -1,0 +1,38 @@
+{
+  "item": "used campervan",
+  "unit": "van",
+  "seller_language": "Polish",
+  "title_example": "Fiat Ducato 2.3 Hymer Exsis 2016",
+  "reference_files": {
+    "knowledge.md": "the scoring reference: bands per spec, market prices, red flags, Polish listing vocabulary",
+    "base-vans.md": "generations, engines and known faults of each base vehicle"
+  },
+  "specs": [
+    "Price vs market", "Year", "Mileage", "Engine & gearbox", "Weight (DMC) & payload", "Registered as camper",
+    "Registered seats", "Conversion", "Beds & layout", "Toilet & shower", "Heating", "Fridge & kitchen", "Solar & batteries",
+    "Water tanks", "Gas & certificate", "Service history", "Rust & damp", "Papers & ownership"
+  ],
+  "categories": {
+    "model_family": {
+      "values": ["Sprinter T1N (to 2006)", "Sprinter W906 (2006-2018)", "Sprinter W907 (2018+)",
+                 "Ducato/Jumper/Boxer X250 (2006-2014)", "Ducato/Jumper/Boxer X290 (2014+)",
+                 "Ducato/Jumper/Boxer (before 2006)", "Master III/Movano B/NV400", "Transit", "Crafter (2006-2016)",
+                 "Crafter/TGE (2017+)", "Iveco Daily", "VW Transporter", "other", "unknown"],
+      "help": "the base vehicle's generation"
+    },
+    "body": {"values": ["van conversion", "coachbuilt", "integrated", "unknown"]},
+    "build": {"values": ["OEM", "pro", "DIY", "unfinished", "unknown"],
+              "help": "OEM for a factory or brand conversion, pro for a professional builder"},
+    "registration": {"values": ["M1", "N1", "unknown"],
+                     "help": "M1 only when it says kempingowy / samochód specjalny, N1 when it says ciężarowy/dostawczy"}
+  },
+  "market": {
+    "same_item_key": "model_family",
+    "group_by": ["model_family", "years"],
+    "detail_by": ["build"],
+    "finest_by": ["km", "build", "registration"],
+    "year_bands": [[2018, "2018+"], [2013, "2013-2017"], [2009, "2009-2012"], [2004, "2004-2008"], [0, "before 2004"]],
+    "km_bands": [[120000, "<120k km"], [200000, "120-200k km"], [280000, "200-280k km"], [400000, "280-400k km"],
+                 [null, "400k+ km"]]
+  }
+}

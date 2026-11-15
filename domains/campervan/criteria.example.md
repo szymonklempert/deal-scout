@@ -1,6 +1,8 @@
-# What I want (fill in; the listing cards are scored against this)
+# What I want (copy this file to criteria.md in the same folder and fill it in)
 
-Edit this file. Anything left blank is treated as "no preference".
+Listings are scored against criteria.md. Anything left blank is treated as "no preference". Items under "Deal breakers"
+and hard limits (budget, maximum mileage, oldest year, maximum weight) set the score to 0 when a listing misses them.
+Mark extras you care a lot about with "BIG PLUS"; other nice-to-haves count half.
 
 - Budget (max, PLN):
 - Ready-made camper, or a van to convert:
