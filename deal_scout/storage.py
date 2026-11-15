@@ -1,5 +1,10 @@
-"""The listings CSV and the generated INDEX.md."""
+"""The listings CSV and the generated INDEX.md.
+
+ROWS_LOCK is the one lock shared by the analysis worker and the polling thread (score corrections): hold it around
+every read-modify-write of listings.csv, INDEX.md and listings/NNN.json.
+"""
 import csv
+import threading
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -10,6 +15,9 @@ from deal_scout.prompts import Listing
 from deal_scout.scoring import clean, ordered_specs, score, specs_avg
 
 Row = dict[str, Any]  # one listings.csv row
+
+# A lock is not "state" in the sense of the no-global-mutable-state rule: it guards files, and holds no data.
+ROWS_LOCK = threading.Lock()
 
 
 def csv_fields(d: Domain) -> list[str]:

@@ -58,7 +58,7 @@ class Recorder:
     def __init__(self):
         self.sent = []
 
-    def send_message(self, chat_id, text, buttons=None, html=False):
+    def send_message(self, chat_id, text, buttons=None, html=False, columns=1):
         self.sent.append(Message(text=text, html=html, buttons=tuple((label, value) for label, value in buttons or [])))
 
     def answer_callback(self, callback_id):

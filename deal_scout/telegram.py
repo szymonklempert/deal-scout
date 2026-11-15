@@ -27,18 +27,32 @@ class TelegramAPI:
         params = {"offset": offset, "timeout": wait, "allowed_updates": ["message", "callback_query"]}
         return cast(list[dict[str, Any]], self.call("getUpdates", params, timeout=wait + 15))
 
-    def send_message(self, chat_id: int | None, text: str, buttons: list[tuple[str, str]] | None = None,
-                     html: bool = False) -> None:
-        """Send a text, optionally HTML-formatted and with link or callback buttons under it."""
-        params: dict[str, Any] = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
+    @staticmethod
+    def _message_params(text: str, buttons: list[tuple[str, str]] | None, html: bool, columns: int) -> dict[str, Any]:
+        """Build the text, parse mode and keyboard shared by sendMessage and editMessageText."""
+        params: dict[str, Any] = {"text": text, "disable_web_page_preview": True}
         if html:
             params["parse_mode"] = "HTML"
         if buttons:  # [(label, url), ...] shown as link buttons under the message
             # (label, "https://...") opens a link; (label, "msg:7:...") is a tap the bot answers in handle_callback
-            params["reply_markup"] = {"inline_keyboard": [
-                [{"text": label, "url": value} if value.startswith("https://") else
-                 {"text": label, "callback_data": value[:64]}] for label, value in buttons]}
-        self.call("sendMessage", params)
+            keys: list[dict[str, str]] = [
+                {"text": label, "url": value} if value.startswith("https://") else
+                {"text": label, "callback_data": value[:64]} for label, value in buttons]
+            width = max(1, columns)
+            params["reply_markup"] = {"inline_keyboard": [keys[i:i + width] for i in range(0, len(keys), width)]}
+        return params
+
+    def send_message(self, chat_id: int | None, text: str, buttons: list[tuple[str, str]] | None = None,
+                     html: bool = False, columns: int = 1) -> None:
+        """Send a text, optionally HTML-formatted and with link or callback buttons, `columns` to a row."""
+        params = self._message_params(text, buttons, html, columns)
+        self.call("sendMessage", {"chat_id": chat_id, **params})
+
+    def edit_message(self, chat_id: int | None, message_id: int, text: str,
+                     buttons: list[tuple[str, str]] | None = None, html: bool = False, columns: int = 1) -> None:
+        """Replace the text and buttons of a message the bot sent earlier (editMessageText)."""
+        params = self._message_params(text, buttons, html, columns)
+        self.call("editMessageText", {"chat_id": chat_id, "message_id": message_id, **params})
 
     def answer_callback(self, callback_id: str) -> None:
         """Acknowledge a button tap so Telegram stops its loading spinner."""

@@ -12,13 +12,20 @@ class FakeAPI:
         self.sent = []
         self.buttons = []
         self.refuse_buttons = refuse_buttons
+        self.refuse_edit = False
+        self.edited = []
 
-    def send_message(self, chat_id, text, buttons=None, html=False):
+    def send_message(self, chat_id, text, buttons=None, html=False, columns=1):
         self.html = getattr(self, "html", []) + [html]
         if (buttons or html) and self.refuse_buttons:
             raise RuntimeError("Telegram error in sendMessage: BUTTON_URL_INVALID")
         self.sent.append(text)
         self.buttons.append(buttons)
+
+    def edit_message(self, chat_id, message_id, text, buttons=None, html=False, columns=1):
+        if self.refuse_edit:
+            raise RuntimeError("Telegram error in editMessageText: message can't be edited")
+        self.edited.append((message_id, text, buttons, columns))
 
     def answer_callback(self, callback_id):
         self.answered = getattr(self, "answered", []) + [callback_id]
@@ -258,6 +265,16 @@ class BotTests(unittest.TestCase):
         bot.send(Message("<b>#1</b>", html=True, buttons=(("💬 WhatsApp message", "msg:1:"),
                                                           ("📊 Open sheet", "https://docs.google.com/x"))))
         self.assertEqual(self.api.sent, ["#1", "📊 Open sheet: https://docs.google.com/x"])
+
+    def test_edit_changes_a_message_in_place(self):
+        self.bot.edit(1, 55, Message("new", buttons=(("A", "fb:1"),), columns=3))
+        self.assertEqual(self.api.edited, [(55, "new", [("A", "fb:1")], 3)])
+        self.assertEqual(self.api.sent, [])
+
+    def test_refused_edit_sends_a_new_message(self):
+        self.api.refuse_edit = True
+        self.bot.edit(1, 55, Message("new"))
+        self.assertEqual((self.api.edited, self.api.sent), ([], ["new"]))
 
     def test_usage_command(self):
         self.bot.handle_update(msg(text="/usage"))

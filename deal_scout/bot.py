@@ -64,8 +64,12 @@ class TelegramClient(Protocol):
         """Long-poll for new messages and button taps, starting at offset."""
 
     def send_message(self, chat_id: int | None, text: str, buttons: list[tuple[str, str]] | None = None,
-                     html: bool = False) -> None:
-        """Send one message, optionally HTML-formatted and with buttons."""
+                     html: bool = False, columns: int = 1) -> None:
+        """Send one message, optionally HTML-formatted and with buttons, `columns` to a row."""
+
+    def edit_message(self, chat_id: int | None, message_id: int, text: str,
+                     buttons: list[tuple[str, str]] | None = None, html: bool = False, columns: int = 1) -> None:
+        """Replace the text and buttons of a message sent earlier."""
 
     def answer_callback(self, callback_id: str) -> None:
         """Acknowledge a button tap."""
@@ -334,9 +338,19 @@ class Bot:
             self.api.send_message(self.allowed, item)
             return
         try:
-            self.api.send_message(self.allowed, item.text, list(item.buttons) or None, html=item.html)
+            self.api.send_message(self.allowed, item.text, list(item.buttons) or None, html=item.html,
+                                  columns=item.columns)
         except RuntimeError as exc:
             self.send_plain_fallback(item, exc)
+
+    def edit(self, chat_id: int | None, message_id: int, item: Message) -> None:
+        """Edit a sent message in place; if Telegram refuses (message too old, same text), send it as a new one."""
+        try:
+            self.api.edit_message(chat_id, message_id, item.text, list(item.buttons) or None, html=item.html,
+                                  columns=item.columns)
+        except RuntimeError as exc:
+            log.warning("Telegram refused a message edit (%s); sending a new message", exc)
+            self.send(item)
 
     def send_plain_fallback(self, item: Message, exc: RuntimeError) -> None:
         """Resend a message Telegram refused as plain text, with its buttons' links as text. Re-raise if it had none."""

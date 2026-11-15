@@ -20,6 +20,7 @@ class Message:
     html: bool = False
     buttons: tuple[Button, ...] = ()
     fallback_url: str | None = None  # where to paste the text if Telegram refuses the buttons
+    columns: int = 1  # buttons per row
 
 
 def esc(text: object) -> str:

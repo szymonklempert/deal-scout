@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from deal_scout import domain as domains
-from deal_scout import market, sheet
+from deal_scout import market, sheet, storage
 from deal_scout.analysis import analyse
 from deal_scout.config import ROOT, Settings, load_env
 from deal_scout.contact import normalise_phone, scrub_phone
@@ -50,18 +50,19 @@ def process_listing(root: Path | str, n: int, *, settings: Settings, domain: Dom
     raw_phone = data.pop("seller_phone", None)
     phone = normalise_phone(raw_phone)  # used for the button only, never saved
     scrub_phone(listings / (nnn + ".md"), raw_phone)
-    (listings / (nnn + ".json")).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    rows = read_rows(listings / "listings.csv")
-    links = root / "inbox" / nnn / "links.txt"
-    link = links.read_text(encoding="utf-8").split()[0] if links.exists() and links.read_text().split() else ""
-    rows[n] = csv_row(n, data, domain, old=rows.get(n), link=link)
-    write_rows(listings / "listings.csv", rows, csv_fields(domain))
-    write_index(listings / "INDEX.md", rows)
-    try:
-        market.write(listings, domain.market)
-    except Exception:  # statistics are a bonus; never lose an analysis over them
-        log.exception("#%s market.md not rebuilt", nnn)
-    summary = summary_text(n, data, rows[n], domain.specs, same_seller(n, rows), phone)
+    with storage.ROWS_LOCK:  # a score correction in the polling thread must not interleave with this update
+        (listings / (nnn + ".json")).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        rows = read_rows(listings / "listings.csv")
+        links = root / "inbox" / nnn / "links.txt"
+        link = links.read_text(encoding="utf-8").split()[0] if links.exists() and links.read_text().split() else ""
+        rows[n] = csv_row(n, data, domain, old=rows.get(n), link=link)
+        write_rows(listings / "listings.csv", rows, csv_fields(domain))
+        write_index(listings / "INDEX.md", rows)
+        try:
+            market.write(listings, domain.market)
+        except Exception:  # statistics are a bonus; never lose an analysis over them
+            log.exception("#%s market.md not rebuilt", nnn)
+        summary = summary_text(n, data, rows[n], domain.specs, same_seller(n, rows), phone)
     if sheet.enabled(settings):
         try:
             pusher(rows[n], csv_fields(domain))
