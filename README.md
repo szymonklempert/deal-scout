@@ -39,6 +39,23 @@ Fits the budget and the must-haves, but there is no word on chain history or the
 - **Market prices from your own data:** `listings/market.md` gives the median asking prices of similar items you've
   collected, so "fair price" isn't a guess for long. Reposts count once, and price drops are tracked.
 
+## Why not just ask Claude in a chat?
+
+A chat is fine for one listing. Over dozens of listings and weeks of browsing, one long session degrades:
+- the rubric gets diluted by everything that came after it;
+- the model mentions what it happens to notice;
+- scores drift from one listing to the next.
+
+So the work is split, and the structure, not the model's memory, makes sure every part is covered:
+- **Knowledge** (base vehicles, scoring bands, checklist, your criteria) is reloaded from files on every run.
+- **The review** runs in a fresh context for each listing.
+- **Coverage:** a strict schema requires an answer for every spec and every criterion, even if the answer is
+  "unknown". Anything the model skips is recorded as "not shown".
+- **The score** is computed in code from the criteria checks.
+- **Market prices** come from code, built across all your listings.
+
+The model does the judging, and code does the bookkeeping.
+
 ## How it works
 
 ```
