@@ -55,6 +55,16 @@ def push(row, fields, opener=urllib.request.urlopen):
         raise RuntimeError(out.get("error") or "the sheet script reported an error")
 
 
+def push_all(csv_path, opener=urllib.request.urlopen):
+    """Copy every row of listings.csv to the sheet, in number order; returns how many were copied."""
+    import process
+    rows = process.read_rows(csv_path)
+    for n in sorted(rows):
+        push(rows[n], process.csv_fields(), opener=opener)
+        print("#%d copied" % n)
+    return len(rows)
+
+
 def main():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import process
@@ -62,11 +72,8 @@ def main():
     load_env(process.ROOT / ".env")
     if not enabled():
         sys.exit("GOOGLE_SHEET_URL is not set in .env (see deploy/google-sheet.md)")
-    rows = process.read_rows(process.ROOT / "listings" / "listings.csv")
-    for n in sorted(rows):
-        push(rows[n], process.CSV_FIELDS)
-        print("#%d copied" % n)
-    print("Done: %d listing(s)." % len(rows))
+    count = push_all(process.ROOT / "listings" / "listings.csv")
+    print("Done: %d listing(s)." % count)
 
 
 if __name__ == "__main__":

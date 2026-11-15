@@ -1,7 +1,9 @@
+import contextlib
 import io
 import json
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -50,6 +52,18 @@ class SheetTests(unittest.TestCase):
         self.assertEqual(sheet.link(), "https://docs.google.com/spreadsheets/d/abc/edit")
         os.environ["GOOGLE_SHEET_LINK"] = "https://script.google.com/macros/s/x/exec"
         self.assertIsNone(sheet.link())
+
+    def test_push_all_copies_every_row_with_all_columns(self):
+        import process
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "listings.csv"
+            process.write_rows(path, {2: {"number": 2, "title": "B"}, 1: {"number": 1, "title": "A"}})
+            opener = FakeOpener('{"ok": true, "row": 2}')
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(sheet.push_all(path, opener=opener), 2)
+        bodies = [json.loads(r.data) for r in opener.requests]
+        self.assertEqual([b["row"]["number"] for b in bodies], [1, 2])
+        self.assertEqual(bodies[0]["fields"], process.csv_fields())
 
     def test_enabled(self):
         self.assertTrue(sheet.enabled())
