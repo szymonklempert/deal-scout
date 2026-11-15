@@ -19,7 +19,7 @@
 | Documents mentioned (service book, invoices, registration as camper) | | |
 
 ## Fit against criteria.md
-Meets: ... Misses: ... Unknown: ... Deal breakers hit: ... (no numeric score here: bot/process.py calculates it)
+Meets: ... Misses: ... Unknown: ... Deal breakers hit: ... (no numeric score here: deal-scout calculates it from the checks)
 
 ## Red flags and gaps
 - 
