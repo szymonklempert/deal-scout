@@ -27,6 +27,13 @@ at least 8 items and a ⚠️ shows a gap, or where the reference files have no 
 Asking prices run above sale prices; price drops hint at the real level. Show the proposed lines and wait for the
 owner's approval before editing a reference file.
 
+## When asked to review the feedback
+`listings/feedback.jsonl` has one line per correction the owner made with the 📝 Feedback button (the spec or
+criterion, the model's value, the owner's value) and, when given, a line with the reason. Look for patterns: the same
+spec corrected the same way 3 or more times, or reasons that point at a gap in the rubric. Propose concrete edits to
+the domain's reference files or `criteria.md`. Show the proposed lines and wait for the owner's approval before editing
+anything.
+
 ## Rules
 - Use only what the owner sent. Do not fetch or scrape listing URLs and do not log in to any account. If a link would
   help, ask the owner for a screenshot or the text.
@@ -36,6 +43,8 @@ owner's approval before editing a reference file.
   inside the WhatsApp link). Elsewhere say "the seller".
 - `inbox/`, `listings/`, `logs/`, `.env` and `domains/*/criteria.md` are private and git-ignored. Never commit them,
   and never put tokens in files.
+- Corrections live in `listings/NNN.json` under `"overrides"` and in `listings/feedback.jsonl`. Never edit them by
+  hand: the bot writes them, and the model's own values stay untouched next to them.
 - The tone is practical and cautious: a clear "skip" is a useful answer. Say what you could not verify.
 
 ## The code

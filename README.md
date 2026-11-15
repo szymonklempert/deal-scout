@@ -23,7 +23,7 @@ Fits the budget and the must-haves, but there is no word on chain history or the
 …one line per spec…
 
 🚩 OM651 with no chain history · "4 miejsca" may mean sleeping places only
-[💬 WhatsApp message]  [✉️ SMS]  [📊 Open sheet]
+[💬 WhatsApp message]  [✉️ SMS]  [📝 Feedback]  [📊 Open sheet]
 ```
 
 - **Scores you can trust.** The model checks each of your criteria as met, missed or unknown, and scores each spec
@@ -33,6 +33,10 @@ Fits the budget and the must-haves, but there is no word on chain history or the
 - **What's missing, and the questions to close it.** Tap a button to get a polite first message in the seller's
   language, asking only what the listing leaves open. On WhatsApp it opens the chat with the text already typed; for
   SMS you get a version that copies with one tap.
+- **Scores you can correct.** The 📝 Feedback button opens a menu that edits itself in place: pick a spec and the
+  right score, or a criterion check and met, missed or unknown, and optionally reply with a reason. Your corrections
+  are kept when the listing is analysed again, shown as ✏️ in the summary and the CSV, and logged for a later review
+  of the rubric.
 - **A listing card** (`listings/NNN.md`): facts with a certainty level, red flags, questions for the seller, and what
   to check on site.
 - **A spreadsheet:** a CSV, plus an optional Google Sheet that every analysis updates.
@@ -119,6 +123,7 @@ tools, write access only to `listings/`, and no web access.
 | `/done`, `/done 7` | analyse the open listing, or re-analyse #7 |
 | `/phone 7 600 123 456` | add the seller's number to #7's WhatsApp message |
 | `/list`, `/market`, `/sheet` | recent listings, market prices, open the Google Sheet |
+| 📝 Feedback (button under a summary) | correct a spec score or a criterion check, with an optional reason |
 | `/status`, `/usage` | is the bot up to date and busy; how much Claude it used |
 
 ## Setup
