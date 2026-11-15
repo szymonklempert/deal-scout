@@ -1,0 +1,250 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title",
+    "seller_name",
+    "source",
+    "location",
+    "specs",
+    "price_net",
+    "fair_price_low",
+    "fair_price_high",
+    "price_pln",
+    "model",
+    "year",
+    "mileage_km",
+    "facts",
+    "criteria_checks",
+    "missing",
+    "red_flags",
+    "verdict",
+    "summary",
+    "seller_message",
+    "seller_sms",
+    "seller_phone",
+    "contact_preference",
+    "kind",
+    "grade"
+  ],
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "seller_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "location": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "specs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "value",
+          "score"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "Price vs market",
+              "Condition",
+              "Battery",
+              "Accessories"
+            ]
+          },
+          "value": {
+            "type": "string"
+          },
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "price_net": {
+      "type": "boolean"
+    },
+    "fair_price_low": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "fair_price_high": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "price_pln": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "year": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "mileage_km": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "value",
+          "certainty"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "certainty": {
+            "type": "string",
+            "enum": [
+              "read",
+              "unclear",
+              "not shown"
+            ]
+          }
+        }
+      }
+    },
+    "criteria_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "criterion",
+          "result",
+          "deal_breaker",
+          "importance"
+        ],
+        "properties": {
+          "criterion": {
+            "type": "string"
+          },
+          "importance": {
+            "type": "string",
+            "enum": [
+              "required",
+              "big plus",
+              "nice to have"
+            ]
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "met",
+              "missed",
+              "unknown"
+            ]
+          },
+          "deal_breaker": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "missing": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "red_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "worth a visit",
+        "ask first",
+        "skip"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "seller_message": {
+      "type": "string"
+    },
+    "seller_sms": {
+      "type": "string"
+    },
+    "seller_phone": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "contact_preference": {
+      "type": "string",
+      "enum": [
+        "whatsapp",
+        "sms",
+        "phone call",
+        "messenger",
+        "not stated"
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "phone",
+        "tablet",
+        "unknown"
+      ]
+    },
+    "grade": {
+      "type": "string",
+      "enum": [
+        "new",
+        "used",
+        "unknown"
+      ]
+    }
+  }
+}

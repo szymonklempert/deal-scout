@@ -1,0 +1,78 @@
+{
+  "title": "Acme Widget 3 128 GB",
+  "seller_name": "Alex Example",
+  "source": "Gadgets for sale",
+  "location": "Kraków",
+  "kind": "phone",
+  "grade": "used",
+  "price_net": false,
+  "fair_price_low": 1000,
+  "fair_price_high": 1200,
+  "price_pln": 1450,
+  "model": "Acme Widget 1",
+  "year": 2021,
+  "mileage_km": null,
+  "specs": [
+    {
+      "name": "Price vs market",
+      "value": "1 350 PLN · fair 1.0-1.2k",
+      "score": 5
+    },
+    {
+      "name": "Condition",
+      "value": "light scratches <back>",
+      "score": 7
+    },
+    {
+      "name": "Battery",
+      "value": "not shown",
+      "score": 4
+    }
+  ],
+  "facts": [
+    {
+      "field": "Storage",
+      "value": "128 GB",
+      "certainty": "read"
+    }
+  ],
+  "criteria_checks": [
+    {
+      "criterion": "Budget: up to 1500 PLN",
+      "result": "met",
+      "deal_breaker": true,
+      "importance": "required"
+    },
+    {
+      "criterion": "Battery health shown",
+      "result": "unknown",
+      "deal_breaker": false,
+      "importance": "required"
+    },
+    {
+      "criterion": "Original box",
+      "result": "missed",
+      "deal_breaker": false,
+      "importance": "nice to have"
+    },
+    {
+      "criterion": "Deal breaker: iCloud lock",
+      "result": "unknown",
+      "deal_breaker": true,
+      "importance": "required"
+    }
+  ],
+  "missing": [
+    "battery health",
+    "serial number"
+  ],
+  "red_flags": [
+    "price above fair range",
+    "no receipt"
+  ],
+  "verdict": "ask first",
+  "summary": "Decent phone & fair condition, but the battery is unknown.",
+  "seller_message": "Hello, I'm interested in the Acme Widget 3.\n1. What is the battery health?\nThanks.",
+  "seller_sms": "Hello, is the Acme Widget 3 still for sale? Battery health?",
+  "contact_preference": "whatsapp"
+}

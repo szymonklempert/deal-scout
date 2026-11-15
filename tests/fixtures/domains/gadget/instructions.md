@@ -1,0 +1,2 @@
+- Ask whether the original charger is included.
+- A cracked screen caps Condition at 3.

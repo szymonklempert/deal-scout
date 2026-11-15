@@ -1,0 +1,14 @@
+{
+  "item": "used gadget",
+  "unit": "gadget",
+  "seller_language": "English",
+  "title_example": "Acme Widget 3",
+  "reference_files": {"guide.md": "scoring bands for gadgets"},
+  "specs": ["Price vs market", "Condition", "Battery", "Accessories"],
+  "categories": {
+    "kind": {"values": ["phone", "tablet", "unknown"], "help": "what sort of gadget it is"},
+    "grade": {"values": ["new", "used", "unknown"]}
+  },
+  "market": {"same_item_key": "model", "group_by": ["kind"], "detail_by": ["years"], "finest_by": ["grade"],
+             "year_bands": [[2022, "2022+"], [0, "older"]]}
+}

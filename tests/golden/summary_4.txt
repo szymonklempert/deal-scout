@@ -1,0 +1,14 @@
+[html]
+<b>#4 Acme Widget 3 128 GB</b>
+price not shown · Kraków · Gadgets for sale
+Score – (fill in criteria.md) · specs <b>–</b> · <b>ask first</b>
+<i>Decent phone &amp; fair condition, but the battery is unknown.</i>
+
+⚪ Price vs market: <i>not shown</i>
+⚪ Condition: <i>not shown</i>
+⚪ Battery: <i>not shown</i>
+⚪ Accessories: <i>not shown</i>
+
+🚩 price above fair range · no receipt
+📄 listings/004.md
+[📊 Open sheet] https://docs.google.com/spreadsheets/d/golden/edit

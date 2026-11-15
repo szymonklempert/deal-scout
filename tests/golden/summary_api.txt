@@ -1,0 +1,18 @@
+[html]
+<b>#1 Acme Widget 3 128 GB</b>
+<b>1 350 PLN</b> · Kraków · Gadgets for sale
+Seller: Alex Example
+Score <b>5.7/10</b> · specs <b>6.0/10</b> · <b>ask first</b>
+<i>Decent phone &amp; fair condition, but the battery is unknown.</i>
+
+🟡 Price vs market: 1 350 PLN · fair 1.0-1.2k · 5/10
+🟢 Condition: light scratches &lt;back&gt; · 7/10
+⚪ Battery: <i>not shown</i>
+⚪ Accessories: <i>not shown</i>
+
+🚩 price above fair range · no receipt
+💬 listing asks for whatsapp · tap below for the message to the seller
+📄 listings/001.md
+[💬 WhatsApp message] msg:1:48600111222
+[✉️ SMS] sms:1:48600111222
+[📊 Open sheet] https://docs.google.com/spreadsheets/d/golden/edit

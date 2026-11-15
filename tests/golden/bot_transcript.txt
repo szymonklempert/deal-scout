@@ -1,0 +1,117 @@
+Send me screenshots, links and notes about a listing. Everything sent close together lands in one listing.
+/new  start a new listing now
+/done  analyse the listing you just sent (/done 7 re-analyses #7)
+/phone 7 600 123 456  WhatsApp button for #7's seller message (the number is not saved)
+/list  show the latest listings
+/status  is the bot up to date, is anything being analysed
+/market  asking prices from your own listings
+/sheet  open the Google Sheet
+/usage  how much Claude the analysis used (7 days, 30 days, all time)
+/help  this message
+
+=====
+
+Nothing saved yet.
+
+=====
+
+No market data yet: it is built after the first analysis.
+
+=====
+
+No open listing. Send screenshots first, or /done 7 to re-analyse #7.
+
+=====
+
+#1: 2 photo(s), 1 link(s) saved.
+
+=====
+
+#1  2 photo(s)  https://example.com/item/1
+
+=====
+
+#1: analysing, usually about a minute...
+
+=====
+
+[html]
+<b>#1 Acme Widget 3 128 GB</b>
+<b>1 350 PLN</b> · Kraków · Gadgets for sale
+Seller: Alex Example
+Score <b>5.7/10</b> · specs <b>6.0/10</b> · <b>ask first</b>
+<i>Decent phone &amp; fair condition, but the battery is unknown.</i>
+
+🟡 Price vs market: 1 350 PLN · fair 1.0-1.2k · 5/10
+🟢 Condition: light scratches &lt;back&gt; · 7/10
+⚪ Battery: <i>not shown</i>
+⚪ Accessories: <i>not shown</i>
+
+🚩 price above fair range · no receipt
+💬 listing asks for whatsapp · tap below for the message to the seller
+📄 listings/001.md
+[💬 WhatsApp message] msg:1:48600111222
+[✉️ SMS] sms:1:48600111222
+[📊 Open sheet] https://docs.google.com/spreadsheets/d/golden/edit
+
+=====
+
+Hello, I'm interested in the Acme Widget 3.
+1. What is the battery health?
+Thanks.
+[Send on WhatsApp] https://wa.me/48600111222?text=Hello%2C%20I%27m%20interested%20in%20the%20Acme%20Widget%203.%0A1.%20What%20is%20the%20battery%20health%3F%0AThanks.
+
+=====
+
+[html]
+<code>Hello, is the Acme Widget 3 still for sale? Battery health?</code>
+
+Tap the text to copy it. No phone number on the screenshots.
+
+=====
+
+Hello, I'm interested in the Acme Widget 3.
+1. What is the battery health?
+Thanks.
+[Send on WhatsApp] https://wa.me/48600111222?text=Hello%2C%20I%27m%20interested%20in%20the%20Acme%20Widget%203.%0A1.%20What%20is%20the%20battery%20health%3F%0AThanks.
+
+=====
+
+[html]
+<code>Hello, is the Acme Widget 3 still for sale? Battery health?</code>
+
+📱 +48 600 111 222
+Tap the text to copy it, then tap the number and choose SMS.
+
+=====
+
+#1: '12' doesn't look like a phone number
+
+=====
+
+Usage: /phone 7 600 123 456
+
+=====
+
+There is no #9.
+
+=====
+
+Your listings sheet:
+[📊 Open sheet] https://docs.google.com/spreadsheets/d/golden/edit
+
+=====
+
+Claude usage of the listing analysis (cost at API list prices; a subscription isn't billed per run)
+Last 7 days: 1 analysis · 0 tokens in (0% cached) · 0 out · ~$0.00 · per listing ~$0.00, 0 s
+Last 30 days: 1 analysis · 0 tokens in (0% cached) · 0 out · ~$0.00 · per listing ~$0.00, 0 s
+All time: 1 analysis · 0 tokens in (0% cached) · 0 out · ~$0.00 · per listing ~$0.00, 0 s
+Your plan's weekly limit: /usage in Claude Code, or claude.ai > Settings > Usage.
+
+=====
+
+Unknown command. /help
+
+=====
+
+I can save photos, screenshots, links and text.
