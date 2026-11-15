@@ -120,4 +120,16 @@ Optional extras:
 Requirements: Python 3.10+. Then either [Claude Code](https://code.claude.com) logged in with a Claude subscription
 (the default), or an API key and SDK for one of the other providers.
 
-Tests (no network, no Claude calls): `python3 -m unittest discover -s tests`
+## Development
+
+The rules for code changes are in [`docs/CODING_STANDARDS.md`](docs/CODING_STANDARDS.md). The bot needs only the
+standard library; lint and type checks use two dev tools:
+
+```sh
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/ruff check .                     # style, imports, docstrings, common bugs
+.venv/bin/mypy                             # types (settings in pyproject.toml)
+python3 -m unittest discover -s tests      # tests: no network, no model calls
+```
+
+CI (`.github/workflows/ci.yml`) runs all three on Python 3.10 and 3.12.

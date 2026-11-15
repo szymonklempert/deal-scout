@@ -39,6 +39,8 @@ owner's approval before editing a reference file.
 - The tone is practical and cautious: a clear "skip" is a useful answer. Say what you could not verify.
 
 ## The code
+- **Standards:** `docs/CODING_STANDARDS.md` is binding for every code change. Run ruff, mypy and the tests before
+  committing (README, "Development").
 - **The bot:** `bot/bot.py` is a standard-library Python long-polling bot (outgoing connections only). Config is in
   `.env` (see `.env.example`).
 - **Tests:** `python3 -m unittest discover -s tests`. Deployment: `deploy/README.md`.

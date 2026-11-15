@@ -1,0 +1,47 @@
+# Dev tooling only: deal-scout is not an installable package and the bot never imports these tools.
+# Install them with: pip install -r requirements-dev.txt
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = [".venv", "inbox", "listings", "logs"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes
+    "I",       # isort
+    "N",       # pep8-naming
+    "D",       # pydocstyle
+    "B",       # flake8-bugbear
+    "UP",      # pyupgrade (f-strings, modern type syntax)
+    "G",       # flake8-logging-format (lazy %-style logging, no f-strings in log calls)
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.isort]
+known-first-party = ["bot", "domain", "market", "process", "providers", "sheet", "usage"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests put bot/ on sys.path before importing it, and test names and fakes don't need docstrings.
+"tests/*" = ["E402", "D"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["bot"]
+mypy_path = "bot"
+explicit_package_bases = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+# Optional SDKs, imported lazily by their provider; not installed in CI.
+module = ["anthropic", "anthropic.*", "openai", "openai.*"]
+ignore_missing_imports = true
