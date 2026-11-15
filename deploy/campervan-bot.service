@@ -1,0 +1,14 @@
+# systemd user service. Copy to ~/.config/systemd/user/campervan-bot.service on the Linux PC.
+[Unit]
+Description=Campervan Telegram capture bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/campervan
+ExecStart=/usr/bin/python3 %h/campervan/bot/bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

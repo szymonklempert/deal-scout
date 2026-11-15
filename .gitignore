@@ -1,0 +1,6 @@
+.env
+.state.json
+inbox/
+listings/
+__pycache__/
+*.pyc
