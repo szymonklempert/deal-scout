@@ -31,7 +31,7 @@ Model: 5/10. Pick the right score:
 
 [edit]
 [html]
-✏️ #1 Price vs market: 5 → 3 · score 5.7 → 5.7
+✏️ #1 Price vs market: 5 → 3 · specs 6.0 → 5.0
 Why? Reply with a short reason, or tap Skip.
 [Skip] fr:1
 [◀ Back] fb:1
@@ -45,7 +45,7 @@ Noted.
 
 [edit]
 [html]
-✏️ #1 Acme Widget 3 128 GB — which check is wrong?
+📝 Feedback on #1 Acme Widget 3 128 GB: which check is wrong?
 [✅ Budget: up to 1500 PLN] fk:1:0
 [❔ Battery health shown] fk:1:1
 [❌ Original box] fk:1:2
@@ -94,9 +94,9 @@ Score <b>7.1/10</b> · specs <b>5.0/10</b> · <b>ask first</b>
 ⚪ Accessories: <i>not shown</i>
 
 🚩 price above fair range · no receipt
-💬 listing asks for whatsapp · tap below for the message; no phone on the screenshots (/phone 1 600123456 adds one)
+💬 listing asks for whatsapp · tap below for the message to the seller
 📄 listings/001.md
-[💬 WhatsApp message] msg:1:
-[✉️ SMS] sms:1:
-[📝 Feedback] fx:1
+[💬 WhatsApp message] msg:1:48600111222
+[✉️ SMS] sms:1:48600111222
+[📝 Feedback] fx:1:48600111222
 [📊 Open sheet] https://docs.google.com/spreadsheets/d/golden/edit

@@ -4,7 +4,7 @@ import unittest
 
 from fakes import CAMPERVAN, RESULT
 
-from deal_scout import feedback, fixmenu
+from deal_scout import feedback, feedback_menu
 from deal_scout.scoring import score
 from deal_scout.storage import csv_row
 
@@ -58,9 +58,9 @@ class ScreenTests(unittest.TestCase):
     def test_callback_data_is_short_and_uses_indexes(self):
         data = feedback.apply_overrides(big(), {"specs": {"Spec 3": 1}})
         specs = [f"Spec {i}" for i in range(18)]
-        screens = [fixmenu.menu(123, data, specs), fixmenu.checks_screen(123, data),
-                   fixmenu.check_screen(123, data, 11), fixmenu.confirm(123, "x", 5, 3, "7.4", "7.1")]
-        screens += [fixmenu.spec_screen(123, data, specs, i) for i in (0, 17)]
+        screens = [feedback_menu.menu(123, data, specs), feedback_menu.checks_screen(123, data),
+                   feedback_menu.check_screen(123, data, 11), feedback_menu.confirm(123, "x", 5, 3, "7.4", "7.1")]
+        screens += [feedback_menu.spec_screen(123, data, specs, i) for i in (0, 17)]
         for screen in screens:
             for label, value in screen.buttons:
                 self.assertLess(len(value.encode()), 64, value)
@@ -69,22 +69,22 @@ class ScreenTests(unittest.TestCase):
 
     def test_menu_marks_changes_and_layout(self):
         data = feedback.apply_overrides(RESULT, {"specs": {"Solar & batteries": 3}})
-        menu = fixmenu.menu(1, data, CAMPERVAN.specs)
+        menu = feedback_menu.menu(1, data, CAMPERVAN.specs)
         labels = [b[0] for b in menu.buttons]
         self.assertIn("✏️ Solar & batteries · 3", labels)
         self.assertIn("Mileage · –", labels)
         self.assertEqual(labels[-2:], ["Criteria checks ▸", "✅ Done"])
         self.assertEqual(menu.columns, 2)
         self.assertIn("Feedback on #1", menu.text)
-        self.assertNotIn("Criteria checks ▸", [b[0] for b in fixmenu.menu(1, dict(RESULT, criteria_checks=[]),
+        self.assertNotIn("Criteria checks ▸", [b[0] for b in feedback_menu.menu(1, dict(RESULT, criteria_checks=[]),
                                                                         CAMPERVAN.specs).buttons])
 
     def test_spec_and_check_screens_show_model_and_now(self):
         data = feedback.apply_overrides(RESULT, {"specs": {"Solar & batteries": 3}, "checks": {"Toilet": "met"}})
         i = CAMPERVAN.specs.index("Solar & batteries")
-        text = fixmenu.spec_screen(1, data, CAMPERVAN.specs, i).text
+        text = feedback_menu.spec_screen(1, data, CAMPERVAN.specs, i).text
         self.assertIn("Model: 8/10; now 3/10", text)
-        self.assertEqual(fixmenu.check_screen(1, data, 2).text, "Toilet\nModel: unknown; now met. Set:")
+        self.assertEqual(feedback_menu.check_screen(1, data, 2).text, "Toilet\nModel: unknown; now met. Set:")
 
 
 if __name__ == "__main__":

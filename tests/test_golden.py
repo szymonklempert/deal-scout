@@ -16,7 +16,7 @@ from pathlib import Path
 
 from fakes import FakeAnthropic, FakeOpenAI, FakeRunner
 
-from deal_scout import analysis, config, contact, domain, process
+from deal_scout import analysis, config, contact, corrections, domain, process
 from deal_scout import bot as botmod
 from deal_scout.render import Message
 
@@ -231,14 +231,14 @@ class GoldenTests(unittest.TestCase):
         self.listing(1, links="https://example.com/item/1")
         process.process_listing(self.root, 1, settings=self.settings, domain=self.domain, model="opus",
                                 runner=FakeRunner(result()))
-        fixer = functools.partial(process.fix, self.root, settings=self.settings, domain=self.domain)
+        fixer = functools.partial(corrections.fix, self.root, settings=self.settings, domain=self.domain)
         bot = botmod.Bot(api, self.root, 1, clock=lambda: 1000.0, fixer=fixer)
 
         def tap(data):
             bot.handle_update({"update_id": 2, "callback_query": {
                 "id": "cb", "from": {"id": 1}, "data": data, "message": {"message_id": 9, "chat": {"id": 1}}}})
 
-        tap("fx:1")
+        tap("fx:1:48600111222")
         tap("fs:1:0")
         tap("fv:1:0:3")
         bot.handle_update({"update_id": 3, "message": {"from": {"id": 1}, "chat": {"id": 1}, "date": 1000,
@@ -253,7 +253,7 @@ class GoldenTests(unittest.TestCase):
         self.listing(1)
         process.process_listing(self.root, 1, settings=self.settings, domain=self.domain, model="opus",
                                 runner=FakeRunner(result()))
-        process.fix(self.root, 1, "value", ["0", "3"], settings=self.settings, domain=self.domain)
+        corrections.fix(self.root, 1, "value", ["0", "3"], settings=self.settings, domain=self.domain)
         text = (self.root / "listings" / "feedback.jsonl").read_text(encoding="utf-8")
         self.assertNotIn("Alex", text)
         self.assertNotIn("600", text)

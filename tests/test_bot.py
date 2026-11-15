@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from deal_scout import bot as botmod
-from deal_scout.fixmenu import FixReply
+from deal_scout.feedback_menu import FixReply
 from deal_scout.render import Message
 
 
@@ -345,6 +345,18 @@ class BotTests(unittest.TestCase):
         self.clock.t += 601
         bot.handle_update(msg(text="too late"))
         self.assertEqual([c[1] for c in calls], ["value", "skip", "value"])
+
+    def test_feedback_phone_is_remembered_in_memory_for_done_only(self):
+        bot, calls = self.fix_bot()
+        self.fix_tap(bot, "fx:1:48600111222")
+        self.fix_tap(bot, "fx:2:")
+        self.assertEqual(bot.feedback_phone, {1: "48600111222"})
+        self.fix_tap(bot, "fd:2")
+        self.fix_tap(bot, "fd:1")
+        self.fix_tap(bot, "fd:1")
+        self.assertEqual(calls[2:], [(2, "done", []), (1, "done", ["48600111222"]), (1, "done", [])])
+        self.assertEqual(bot.feedback_phone, {})
+        self.assertFalse((self.root / ".state.json").exists() and "4860" in (self.root / ".state.json").read_text())
 
     def test_usage_command(self):
         self.bot.handle_update(msg(text="/usage"))

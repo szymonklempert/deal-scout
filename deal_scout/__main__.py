@@ -5,7 +5,7 @@ import logging.handlers
 import sys
 from pathlib import Path
 
-from deal_scout import contact, domain, process, providers, sheet
+from deal_scout import contact, corrections, domain, process, providers, sheet
 from deal_scout.bot import Bot, log
 from deal_scout.config import ROOT, Settings, load_env
 from deal_scout.telegram import TelegramAPI
@@ -42,7 +42,7 @@ def main() -> None:
               processor=processor if analyse else None, auto_analyse=(mode == "auto"),
               contact=functools.partial(contact.contact_for, ROOT), sheet_link=sheet.link(settings),
               seller_text=functools.partial(contact.seller_text, ROOT),
-              fixer=functools.partial(process.fix, ROOT, settings=settings, domain=d))
+              fixer=functools.partial(corrections.fix, ROOT, settings=settings, domain=d))
     try:
         provider = providers.name(settings)
         engine = f"{provider}, model {providers.model_for(provider, settings)}"

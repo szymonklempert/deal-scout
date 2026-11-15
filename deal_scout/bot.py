@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Protocol, TypedDict, cast
 
 from deal_scout import render, usage
-from deal_scout.fixmenu import FixReply
+from deal_scout.feedback_menu import FixReply
 from deal_scout.inbox import Inbox
 from deal_scout.render import Message
 
@@ -95,7 +95,7 @@ class BotState(TypedDict):
 
 
 FIX_PREFIXES = {"fx": "open", "fb": "back", "fs": "spec", "fv": "value", "fc": "checks", "fk": "check",
-                "fm": "mark", "fr": "skip", "fd": "done"}  # callback prefix -> process.fix action
+                "fm": "mark", "fr": "skip", "fd": "done"}  # callback prefix -> corrections.fix action
 REASON_SECONDS = 600  # how long the next plain text message counts as the reason for a correction
 
 
@@ -136,6 +136,7 @@ class Bot:
         self.seller_text = seller_text  # callable(n, "msg"|"sms", phone) -> messages for a button tap
         self.fixer = fixer  # callable(n, action, args) -> what to show after a 📝 Feedback tap
         self.pending_reason: PendingReason | None = None  # in memory only; a restart forgets it
+        self.feedback_phone: dict[int, str] = {}  # listing -> phone from a Feedback tap (memory only)
         self.version = code_version()
         self.started = time.time()
         # listing numbers waiting for analysis, handled one at a time by worker()
@@ -364,6 +365,10 @@ class Bot:
         """Answer a tap in the 📝 Feedback menu (the sender was already checked): show the next screen."""
         if self.fixer is None:
             return
+        if action == "open" and args and args[0].isdigit():
+            self.feedback_phone[n] = args[0]  # in memory only, for the summary shown after Done
+        if action == "done" and n in self.feedback_phone:
+            args = [self.feedback_phone.pop(n)]
         try:
             reply = self.fixer(n, action, args)
         except Exception as exc:

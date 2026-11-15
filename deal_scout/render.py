@@ -54,7 +54,8 @@ def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | 
     """Return the buttons under the summary.
 
     The message buttons are taps the bot answers (callback data); the phone number rides along inside the button,
-    so it is never written to a file.
+    so it is never written to a file. The Feedback button carries it too, so the summary refreshed after a correction
+    can offer the same buttons.
     """
     buttons: list[Button] = []
     if (data.get("seller_message") or "").strip():
@@ -62,7 +63,7 @@ def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | 
     if (data.get("seller_sms") or "").strip():
         buttons.append(("✉️ SMS", f"sms:{n}:{phone or ''}"))
     if data.get("specs") or data.get("criteria_checks"):
-        buttons.append(("📝 Feedback", f"fx:{n}"))
+        buttons.append(("📝 Feedback", f"fx:{n}:{phone or ''}"))
     if sheet_link:
         buttons.append(("📊 Open sheet", sheet_link))
     return buttons
