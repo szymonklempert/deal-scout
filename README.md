@@ -132,4 +132,18 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 python3 -m unittest discover -s tests      # tests: no network, no model calls
 ```
 
-CI (`.github/workflows/ci.yml`) runs all three on Python 3.10 and 3.12.
+CI (`.github/workflows/ci.yml`) runs all three on Python 3.10 and 3.12. Golden tests (`tests/test_golden.py`) freeze
+every prompt, message and generated file, so a refactor can't change what the owner or the model sees unnoticed.
+
+Code layout (`bot/`, one job per module):
+
+| Module | Job |
+|---|---|
+| `bot.py` | Telegram long polling, the inbox, commands and buttons |
+| `process.py` | one listing end to end; CLI `python3 bot/process.py N` |
+| `analysis.py`, `providers.py` | run Claude Code or one API request; same JSON schema for every provider |
+| `prompts.py` | the prompt and the schema, built from the domain |
+| `scoring.py` | the score from the criteria checks (pure functions) |
+| `storage.py`, `market.py`, `sheet.py` | the CSV and INDEX, market prices, the Google Sheet |
+| `render.py`, `contact.py` | Telegram HTML; phone numbers and seller drafts |
+| `config.py`, `domain.py`, `usage.py` | settings from `.env`, the active domain, usage records |

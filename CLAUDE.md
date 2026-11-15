@@ -43,7 +43,9 @@ owner's approval before editing a reference file.
   committing (README, "Development").
 - **The bot:** `bot/bot.py` is a standard-library Python long-polling bot (outgoing connections only). Config is in
   `.env` (see `.env.example`).
-- **Tests:** `python3 -m unittest discover -s tests`. Deployment: `deploy/README.md`.
+- **Tests:** `python3 -m unittest discover -s tests`. Shared fakes are in `tests/fakes.py`. `tests/test_golden.py`
+  freezes every output the owner, the sheet or the model sees; if a change to one is intended, regenerate with
+  `GOLDEN_UPDATE=1` and review the diff of `tests/golden/`. Deployment: `deploy/README.md`.
 - **Changing the bot:** keep it standard library only, keep the allowlist behaviour (strangers get no answer), and
   add a test.
 - **Analysis:** `bot/analysis.py` runs it with `PROVIDER` from `.env` (`bot/providers.py`).
@@ -62,7 +64,8 @@ owner's approval before editing a reference file.
   - `bot/render.py` Telegram HTML;
   - `bot/contact.py` phone numbers and seller drafts;
   - `bot/providers.py` the API providers;
-  - `bot/config.py` reads `.env` and the environment once into `Settings` (nothing else reads `os.environ`) and defines the project root;
+  - `bot/config.py` reads `.env` and the environment once into `Settings` (nothing else reads `os.environ`) and
+    defines the project root;
   - `bot/domain.py` loads the active domain;
   - `bot/market.py` builds `listings/market.md`;
   - `bot/sheet.py` copies rows to a Google Sheet through `deploy/google-sheet.gs`;

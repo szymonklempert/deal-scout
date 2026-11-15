@@ -71,8 +71,12 @@ These are design decisions, not style. Don't change them without the owner's say
 ## Tests
 
 - `unittest` from the standard library, run with `python3 -m unittest discover -s tests`.
-- **No network and no real model calls.** Use the fakes in `tests/`: `FakeRunner` for Claude Code, `FakeAnthropic`
-  and `FakeOpenAI` for the SDKs, fake Telegram APIs and openers. Each test works in a temporary directory.
+- **No network and no real model calls.** Use the fakes in `tests/fakes.py`: `FakeRunner` for Claude Code,
+  `FakeAnthropic` and `FakeOpenAI` for the SDKs; fake Telegram APIs and openers live next to their tests. Each test
+  works in a temporary directory.
+- **Golden outputs.** `tests/test_golden.py` freezes the prompt, the schema, the Telegram messages and the generated
+  files for a made-up domain (`tests/fixtures/`). A refactor must leave `tests/golden/` untouched; an intended output
+  change regenerates it with `GOLDEN_UPDATE=1` in its own commit, with the diff reviewed.
 - One test file per module (`tests/test_<module>.py`).
 - **Every bug fix and feature comes with a test** that fails without it.
 - Tests that change the environment restore it (`addCleanup`).
