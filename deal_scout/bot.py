@@ -7,23 +7,19 @@ injected (see telegram.py) and python3 -m deal_scout wires it up (see __main__.p
 import hashlib
 import json
 import logging
-import logging.handlers
 import queue
 import re
 import threading
 import time
 import urllib.error
-import urllib.parse
-import urllib.request
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import Any, Protocol, TypedDict, cast
 
 from deal_scout import render, usage
 from deal_scout.inbox import Inbox
 from deal_scout.render import Message
-from deal_scout.telegram import TelegramAPI
 
 log = logging.getLogger("dealscout")
 log.addHandler(logging.NullHandler())  # quiet unless __main__ adds real handlers
@@ -61,6 +57,23 @@ def photo_ids(msg: dict[str, Any]) -> list[str]:
     return ids
 
 
+class TelegramClient(Protocol):
+    """What the bot needs from Telegram: telegram.TelegramAPI in production, a fake in tests."""
+
+    def get_updates(self, offset: int, wait: int = 30) -> list[dict[str, Any]]:
+        """Long-poll for new messages and button taps, starting at offset."""
+
+    def send_message(self, chat_id: int | None, text: str, buttons: list[tuple[str, str]] | None = None,
+                     html: bool = False) -> None:
+        """Send one message, optionally HTML-formatted and with buttons."""
+
+    def answer_callback(self, callback_id: str) -> None:
+        """Acknowledge a button tap."""
+
+    def get_file_bytes(self, file_id: str) -> bytes:
+        """Download a file the owner sent."""
+
+
 class CurrentListing(TypedDict):
     """The listing that new messages are added to."""
 
@@ -87,7 +100,7 @@ class PendingAck:
 class Bot:
     """The bot's brain: saves what the owner sends, answers commands and runs the analysis jobs."""
 
-    def __init__(self, api: TelegramAPI, root: Path, allowed_user_id: int | None, window_seconds: float = 180,
+    def __init__(self, api: TelegramClient, root: Path, allowed_user_id: int | None, window_seconds: float = 180,
                  clock: Callable[[], float] = time.time,
                  processor: Callable[[int], list[Message]] | None = None, auto_analyse: bool = False,
                  contact: Callable[[int, str], list[Message]] | None = None, sheet_link: str | None = None,
