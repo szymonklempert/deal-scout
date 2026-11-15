@@ -5,9 +5,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from prompts import Listing
-from scoring import ordered_specs
-from storage import Row
+from deal_scout.prompts import Listing
+from deal_scout.scoring import ordered_specs
+from deal_scout.storage import Row
 
 Button = tuple[str, str]  # (label, an https:// URL or callback data such as "msg:7:48600123456")
 

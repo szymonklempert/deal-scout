@@ -50,7 +50,7 @@ phone ──screenshots──▶ Telegram bot ──▶ inbox/NNN/
                               + the screenshots + listings/market.md
                        returns: JSON (specs, criteria checks, drafts) + writes the card
                                           ▼
-               bot/process.py: score in code ─▶ CSV · INDEX · market.md · Google Sheet
+               deal_scout/process.py: score in code ─▶ CSV · INDEX · market.md · Google Sheet
                                           ▼
                          Telegram: summary + buttons
 ```
@@ -108,7 +108,7 @@ tools, write access only to `listings/`, and no web access.
 
 1. `cp .env.example .env && chmod 600 .env`, then add a Telegram bot token from @BotFather.
 2. Copy `domains/campervan/criteria.example.md` to `criteria.md` in the same folder and fill it in.
-3. `python3 bot/bot.py`, message the bot, and put the user ID it replies with into `.env`. From then on it only
+3. `python3 -m deal_scout` (from this folder), message the bot, and put the user ID it replies with into `.env`. From then on it only
    answers you.
 4. Send a listing, then `/done`.
 
@@ -135,15 +135,15 @@ python3 -m unittest discover -s tests      # tests: no network, no model calls
 CI (`.github/workflows/ci.yml`) runs all three on Python 3.10 and 3.12. Golden tests (`tests/test_golden.py`) freeze
 every prompt, message and generated file, so a refactor can't change what the owner or the model sees unnoticed.
 
-Code layout (`bot/`, one job per module):
+Code layout (the `deal_scout/` package, one job per module; run from this folder, no install needed):
 
 | Module | Job |
 |---|---|
-| `bot.py` | Telegram long polling, the inbox, commands and buttons |
-| `process.py` | one listing end to end; CLI `python3 bot/process.py N` |
+| `bot.py`, `__main__.py` | Telegram long polling, the inbox, commands and buttons; `python3 -m deal_scout` starts it |
+| `process.py` | one listing end to end; CLI `python3 -m deal_scout.process N` |
 | `analysis.py`, `providers.py` | run Claude Code or one API request; same JSON schema for every provider |
 | `prompts.py` | the prompt and the schema, built from the domain |
 | `scoring.py` | the score from the criteria checks (pure functions) |
-| `storage.py`, `market.py`, `sheet.py` | the CSV and INDEX, market prices, the Google Sheet |
+| `storage.py`, `market.py`, `sheet.py` | the CSV and INDEX, market prices (`python3 -m deal_scout.market`), the Google Sheet (`python3 -m deal_scout.sheet`) |
 | `render.py`, `contact.py` | Telegram HTML; phone numbers and seller drafts |
-| `config.py`, `domain.py`, `usage.py` | settings from `.env`, the active domain, usage records |
+| `config.py`, `domain.py`, `usage.py` | settings from `.env`, the active domain, usage records (`python3 -m deal_scout.usage` prints totals) |

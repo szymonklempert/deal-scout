@@ -5,9 +5,9 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from domain import Domain
-from prompts import Listing
-from scoring import clean, ordered_specs, score, specs_avg
+from deal_scout.domain import Domain
+from deal_scout.prompts import Listing
+from deal_scout.scoring import clean, ordered_specs, score, specs_avg
 
 Row = dict[str, Any]  # one listings.csv row
 

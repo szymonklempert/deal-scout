@@ -2,7 +2,7 @@
 from pathlib import Path
 from typing import Any
 
-from domain import Domain
+from deal_scout.domain import Domain
 
 Listing = dict[str, Any]  # the model's structured result, shaped by schema()
 

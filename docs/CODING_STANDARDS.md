@@ -1,6 +1,6 @@
 # Coding standards
 
-These rules bind every change to `bot/` and `tests/`, by people or agents. `ruff`, `mypy` and the tests enforce
+These rules bind every change to `deal_scout/` and `tests/`, by people or agents. `ruff`, `mypy` and the tests enforce
 most of them (see "Development" in the README). Where a tool and this page disagree, fix the tool config.
 
 ## Style
@@ -33,7 +33,7 @@ most of them (see "Development" in the README). Where a tool and this page disag
   transport). A function aims for under ~40 lines; a longer one needs a reason.
 - **No import-time side effects** except defining constants. Importing a module never reads `.env`, loads a domain,
   touches the disk or the network.
-- **Configuration in one place.** `bot/config.py` reads the environment once into a typed settings object, and
+- **Configuration in one place.** `deal_scout/config.py` reads the environment once into a typed settings object, and
   everything else gets settings passed in. No `os.environ` reads scattered across modules, and no code writes to
   `os.environ` to pass a value along.
 - **No global mutable state.** The active domain, the model and the settings are parameters, not module globals
@@ -49,12 +49,12 @@ These are design decisions, not style. Don't change them without the owner's say
 
 | Rule | Why |
 |---|---|
-| The bot core is **standard library only**. | It runs on a small always-on Linux box with no build step, and nothing extra needs to be audited or updated. |
+| The bot core (the `deal_scout` package) is **standard library only**. | It runs on a small always-on Linux box with no build step, and nothing extra needs to be audited or updated. |
 | The `anthropic` and `openai` SDKs are **imported lazily**, only inside their provider's function. | Someone using the default `claude-code` provider doesn't need them installed. |
 | **Strangers get no answer.** Every update and button tap from a user other than `TELEGRAM_ALLOWED_USER_ID` is ignored silently. | The bot is private. Any reply would confirm it exists and invite probing. |
 | The **Claude Code run keeps its restrictions**: only the Read, Write, Edit and Glob tools, writes only to `listings/`, no shell, no web, no MCP, and no `ANTHROPIC_*` key or `TELEGRAM_*` value in its environment. | A listing is untrusted text from a stranger. A prompt injection in it must not reach the network, other files or the bot token, and a stray API key must not move the run off the subscription. |
 | **Phone numbers are never written to disk.** They live only in button data and are scrubbed from cards. | Sellers' personal data. The repo is public, and logs and cards travel. |
-| **Nothing domain-specific in `bot/`.** Item names, specs, categories, languages and prices live in `domains/<name>/`. | The repo is a blueprint for other kinds of purchase. A new domain must need no code changes. |
+| **Nothing domain-specific in `deal_scout/`.** Item names, specs, categories, languages and prices live in `domains/<name>/`. | The repo is a blueprint for other kinds of purchase. A new domain must need no code changes. |
 | **Every provider returns the same schema.** The schema stays strict-mode compatible: every object closed, every key required, typed enums, no numeric limits. | Scoring, storage, the sheet and Telegram rendering don't care which model ran. |
 
 ## Errors and logging

@@ -8,7 +8,7 @@ The bot only makes outgoing connections to Telegram, so no router ports need ope
    git clone <this repo> ~/deal-scout        # or copy the folder
    cd ~/deal-scout
    cp .env.example .env && chmod 600 .env   # paste the token; leave TELEGRAM_ALLOWED_USER_ID empty for now
-   python3 bot/bot.py
+   python3 -m deal_scout
    ```
 3. Message your bot. It answers "Setup: your Telegram user ID is ...". Put that number into `.env`
    as `TELEGRAM_ALLOWED_USER_ID`, stop the bot (Ctrl+C) and start it again. Now only you are served.
@@ -30,7 +30,7 @@ The bot runs Claude Code (`claude -p`) for each listing, using your Claude subsc
 1. Install Claude Code on the PC (see the Claude Code docs), then run `claude setup-token` and copy the token.
 2. In `.env`: `CLAUDE_CODE_OAUTH_TOKEN=<token>`, `ANALYSIS=auto`, and `CLAUDE_BIN=<output of which claude>`
    (systemd does not see your shell's PATH).
-3. Test it once by hand: `python3 bot/process.py 1`.
+3. Test it once by hand: `python3 -m deal_scout.process 1` (from the repo folder).
 
 ## Security
 - The token lives only in `.env` (mode 600), which is git-ignored. If it leaks, revoke it with @BotFather (`/revoke`).

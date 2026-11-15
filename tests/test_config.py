@@ -1,12 +1,10 @@
 """Settings: what each environment variable becomes, and what must never be logged or passed on."""
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-import config  # noqa: E402
+from deal_scout import config
 
 
 class LoadEnvTests(unittest.TestCase):

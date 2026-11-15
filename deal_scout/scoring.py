@@ -1,7 +1,7 @@
 """Turn the model's criteria checks and spec scores into numbers; pure, no I/O."""
 from typing import Any
 
-from prompts import Listing
+from deal_scout.prompts import Listing
 
 
 def ordered_specs(data: Listing, specs: list[str]) -> list[tuple[str, str, int | None]]:

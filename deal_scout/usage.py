@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 """How much the listing analysis uses Claude: one line per run in logs/usage.jsonl, totals for /usage.
 
-    python3 bot/usage.py         # print the totals
+    python3 -m deal_scout.usage        # print the totals
 
 Claude Code reports tokens and a cost at API list prices for each run. On a Claude subscription nothing is billed
 per run; the list-price figure is still the best single measure of how heavy the usage is, because it weights input,
@@ -14,7 +13,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, TypedDict
 
-import config
+from deal_scout import config
 
 DAY = 86400
 

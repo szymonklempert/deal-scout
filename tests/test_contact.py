@@ -1,12 +1,9 @@
 """Phone numbers and the seller drafts."""
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import contact  # noqa: E402
+from deal_scout import contact
 
 
 class PhoneTests(unittest.TestCase):

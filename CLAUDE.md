@@ -9,7 +9,7 @@ What is being bought is the active domain: `DOMAIN` in `.env` (default `camperva
 1. Read the domain's `criteria.md`, `checklist.md`, `instructions.md` and the reference files listed in its
    `domain.json`. If `criteria.md` is missing or mostly empty, say so and ask the owner to fill it in (from
    `criteria.example.md`) before scoring; you can still extract facts.
-2. For each new listing, run `python3 bot/process.py <N>`. It runs this workflow through headless Claude Code with
+2. For each new listing, run `python3 -m deal_scout.process <N>` from the repo folder. It runs this workflow through headless Claude Code with
    the right restrictions, scores in code, and updates `listings/` (card, CSV, INDEX, market.md, Google Sheet).
    If you write a card by hand instead: look at every photo, then notes.txt and links.txt, and use the domain's
    `card-template.md`.
@@ -41,32 +41,33 @@ owner's approval before editing a reference file.
 ## The code
 - **Standards:** `docs/CODING_STANDARDS.md` is binding for every code change. Run ruff, mypy and the tests before
   committing (README, "Development").
-- **The bot:** `bot/bot.py` is a standard-library Python long-polling bot (outgoing connections only). Config is in
+- **The bot:** `deal_scout/bot.py` is a standard-library Python long-polling bot (outgoing connections only); start it with
+  `python3 -m deal_scout`. Config is in
   `.env` (see `.env.example`).
 - **Tests:** `python3 -m unittest discover -s tests`. Shared fakes are in `tests/fakes.py`. `tests/test_golden.py`
   freezes every output the owner, the sheet or the model sees; if a change to one is intended, regenerate with
   `GOLDEN_UPDATE=1` and review the diff of `tests/golden/`. Deployment: `deploy/README.md`.
 - **Changing the bot:** keep it standard library only, keep the allowlist behaviour (strangers get no answer), and
   add a test.
-- **Analysis:** `bot/analysis.py` runs it with `PROVIDER` from `.env` (`bot/providers.py`).
+- **Analysis:** `deal_scout/analysis.py` runs it with `PROVIDER` from `.env` (`deal_scout/providers.py`).
   - `claude-code` (default) runs `claude -p` with no shell or web tools, write access only to `listings/`, and no
     API key in its environment.
   - `anthropic`, `openai` and `openrouter` make one structured-output request with no tools; their SDKs are imported
     only when chosen.
   - Keep these restrictions, and keep every provider returning the same schema.
-- **Domains:** nothing in `bot/` may be specific to one domain. Domain knowledge goes in `domains/<name>/`.
+- **Domains:** nothing in `deal_scout/` may be specific to one domain. Domain knowledge goes in `domains/<name>/`.
 - **Modules** (one job each, no import cycles):
-  - `bot/process.py` ties one listing's analysis together (CLI: `python3 bot/process.py N`);
-  - `bot/analysis.py` runs Claude Code or the API provider;
-  - `bot/prompts.py` the prompt and the JSON schema;
-  - `bot/scoring.py` the score from the criteria checks (pure);
-  - `bot/storage.py` the CSV and `INDEX.md`;
-  - `bot/render.py` Telegram HTML;
-  - `bot/contact.py` phone numbers and seller drafts;
-  - `bot/providers.py` the API providers;
-  - `bot/config.py` reads `.env` and the environment once into `Settings` (nothing else reads `os.environ`) and
+  - `deal_scout/process.py` ties one listing's analysis together (CLI: `python3 -m deal_scout.process N`);
+  - `deal_scout/analysis.py` runs Claude Code or the API provider;
+  - `deal_scout/prompts.py` the prompt and the JSON schema;
+  - `deal_scout/scoring.py` the score from the criteria checks (pure);
+  - `deal_scout/storage.py` the CSV and `INDEX.md`;
+  - `deal_scout/render.py` Telegram HTML;
+  - `deal_scout/contact.py` phone numbers and seller drafts;
+  - `deal_scout/providers.py` the API providers;
+  - `deal_scout/config.py` reads `.env` and the environment once into `Settings` (nothing else reads `os.environ`) and
     defines the project root;
-  - `bot/domain.py` loads the active domain;
-  - `bot/market.py` builds `listings/market.md`;
-  - `bot/sheet.py` copies rows to a Google Sheet through `deploy/google-sheet.gs`;
-  - `bot/usage.py` records Claude usage per run.
+  - `deal_scout/domain.py` loads the active domain;
+  - `deal_scout/market.py` builds `listings/market.md`;
+  - `deal_scout/sheet.py` copies rows to a Google Sheet through `deploy/google-sheet.gs`;
+  - `deal_scout/usage.py` records Claude usage per run.

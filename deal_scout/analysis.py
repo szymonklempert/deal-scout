@@ -6,12 +6,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
-import providers
-import usage
-from config import Settings
-from domain import Domain
-from errors import ProcessError
-from prompts import Listing, api_request, prompt, schema
+from deal_scout import providers, usage
+from deal_scout.config import Settings
+from deal_scout.domain import Domain
+from deal_scout.errors import ProcessError
+from deal_scout.prompts import Listing, api_request, prompt, schema
 
 log = logging.getLogger("dealscout")
 

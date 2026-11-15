@@ -4,9 +4,9 @@ import re
 import urllib.parse
 from pathlib import Path
 
-from errors import ProcessError
-from prompts import Listing
-from render import Message, esc
+from deal_scout.errors import ProcessError
+from deal_scout.prompts import Listing
+from deal_scout.render import Message, esc
 
 
 def normalise_phone(raw: object) -> str | None:

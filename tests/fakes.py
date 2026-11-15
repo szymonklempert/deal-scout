@@ -1,14 +1,10 @@
 """Shared test helpers: a canned model result, fake Claude Code / Anthropic / OpenAI backends. No tests here."""
 import json
 import subprocess
-import sys
 from contextlib import contextmanager
-from pathlib import Path
 from types import SimpleNamespace as Ns
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-import config  # noqa: E402
-import domain  # noqa: E402
+from deal_scout import config, domain
 
 SETTINGS = config.Settings()
 CAMPERVAN = domain.load("campervan")

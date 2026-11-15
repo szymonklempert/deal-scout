@@ -1,13 +1,9 @@
 """The score from criteria checks and the spec scores."""
-import sys
 import unittest
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from fakes import CAMPERVAN, RESULT, check  # noqa: E402
+from fakes import CAMPERVAN, RESULT, check
 
-import scoring  # noqa: E402
+from deal_scout import scoring
 
 
 class ScoreTests(unittest.TestCase):

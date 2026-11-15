@@ -1,11 +1,10 @@
-import sys
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-import bot as botmod  # noqa: E402
-from render import Message  # noqa: E402
+from deal_scout import bot as botmod
+from deal_scout.render import Message
 
 
 class FakeAPI:
@@ -210,6 +209,12 @@ class BotTests(unittest.TestCase):
         self.bot.version = "old"
         self.bot.handle_update(msg(text="/status"))
         self.assertIn("restart it", self.api.sent[-1])
+
+    def test_code_version_fingerprints_the_package_files(self):
+        files = sorted(Path(botmod.__file__).resolve().parent.glob("*.py"))
+        self.assertIn("bot.py", [p.name for p in files])
+        expected = hashlib.sha1(b"".join(p.read_bytes() for p in files)).hexdigest()[:8]
+        self.assertEqual(botmod.code_version(), expected)
 
     def test_market_command(self):
         self.bot.handle_update(msg(text="/market"))

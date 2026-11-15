@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 WorkingDirectory=%h/deal-scout
-ExecStart=/usr/bin/python3 %h/deal-scout/bot/bot.py
+ExecStart=/usr/bin/python3 -m deal_scout
 Restart=always
 RestartSec=5
 

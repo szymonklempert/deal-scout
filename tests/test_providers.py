@@ -6,14 +6,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from fakes import CAMPERVAN, SETTINGS, FakeAnthropic, FakeOpenAI  # noqa: E402
+from fakes import CAMPERVAN, SETTINGS, FakeAnthropic, FakeOpenAI
 
-import errors  # noqa: E402
-import process  # noqa: E402
-import providers  # noqa: E402
-import usage  # noqa: E402
+from deal_scout import errors, process, providers, usage
 
 
 class ProviderTests(unittest.TestCase):

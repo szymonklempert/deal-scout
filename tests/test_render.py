@@ -1,10 +1,7 @@
 """The Telegram HTML helpers."""
-import sys
 import unittest
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-import render  # noqa: E402
+from deal_scout import render
 
 
 class PlainTextTests(unittest.TestCase):

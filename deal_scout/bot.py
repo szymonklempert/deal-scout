@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""deal-scout Telegram bot.
+"""deal-scout Telegram bot (run it with: python3 -m deal_scout).
 
 You send screenshots, links and notes to a private Telegram bot. It saves them into inbox/<NNN>/ (one folder per
 listing) and answers with a short confirmation. Only the Telegram user in TELEGRAM_ALLOWED_USER_ID is served.
@@ -23,15 +22,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
-import contact
-import domain
-import process
-import providers
-import render
-import sheet
-import usage
-from config import ROOT, Settings, load_env
-from render import Message
+from deal_scout import contact, domain, process, providers, render, sheet, usage
+from deal_scout.config import ROOT, Settings, load_env
+from deal_scout.render import Message
 
 log = logging.getLogger("dealscout")
 log.addHandler(logging.NullHandler())  # quiet unless setup_logging() adds real handlers
@@ -52,7 +45,7 @@ def setup_logging(root: Path) -> None:
 def code_version() -> str:
     """Fingerprint of the bot's code, to tell when the running bot is older than the files (restart needed)."""
     h = hashlib.sha1()
-    for path in sorted((ROOT / "bot").glob("*.py")):
+    for path in sorted(Path(__file__).resolve().parent.glob("*.py")):
         h.update(path.read_bytes())
     return h.hexdigest()[:8]
 URL_RE = re.compile(r"https?://[^\s<>\"']+")

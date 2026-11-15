@@ -2,16 +2,11 @@ import contextlib
 import dataclasses
 import io
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-import config  # noqa: E402
-import domain  # noqa: E402
-import sheet  # noqa: E402
-import storage  # noqa: E402
+from deal_scout import config, domain, sheet, storage
 
 CAMPERVAN = domain.load("campervan")
 FIELDS = storage.csv_fields(CAMPERVAN)

@@ -1,13 +1,12 @@
-#!/usr/bin/env python3
 """Analyse one saved listing and update the cards, the CSV, the index and the spreadsheet.
 
-    python3 bot/process.py 7        # analyse inbox/007/
+    python3 -m deal_scout.process 7       # analyse inbox/007/
 
 This module only ties one listing's analysis together: analysis.py asks the model (Claude Code by default, or an API
 provider), scoring.py and storage.py turn its checks into the score, the CSV row and INDEX.md, render.py formats the
 Telegram summary, contact.py handles the seller's phone number and message drafts, and market.py and sheet.py update
 the market prices and the Google Sheet. Nothing here is specific to what is being bought: that comes from the domain
-(bot/domain.py). Standard library only.
+(deal_scout/domain.py). Standard library only.
 """
 import dataclasses
 import functools
@@ -19,16 +18,15 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
-import domain as domains
-import market
-import sheet
-from analysis import analyse
-from config import ROOT, Settings, load_env
-from contact import normalise_phone, scrub_phone
-from domain import Domain
-from errors import ProcessError
-from render import Message, esc, plain_text, summary_buttons, summary_text
-from storage import csv_fields, csv_row, read_rows, same_seller, write_index, write_rows
+from deal_scout import domain as domains
+from deal_scout import market, sheet
+from deal_scout.analysis import analyse
+from deal_scout.config import ROOT, Settings, load_env
+from deal_scout.contact import normalise_phone, scrub_phone
+from deal_scout.domain import Domain
+from deal_scout.errors import ProcessError
+from deal_scout.render import Message, esc, plain_text, summary_buttons, summary_text
+from deal_scout.storage import csv_fields, csv_row, read_rows, same_seller, write_index, write_rows
 
 log = logging.getLogger("dealscout")
 log.addHandler(logging.NullHandler())  # quiet unless setup_logging() adds real handlers

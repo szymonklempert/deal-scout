@@ -9,24 +9,17 @@ import dataclasses
 import json
 import os
 import re
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from fakes import FakeAnthropic, FakeOpenAI, FakeRunner
+
+from deal_scout import analysis, config, contact, domain, process
+from deal_scout import bot as botmod
+from deal_scout.render import Message
+
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "bot"))
-sys.path.insert(0, str(HERE))
-from fakes import FakeAnthropic, FakeOpenAI, FakeRunner  # noqa: E402
-
-import analysis  # noqa: E402
-import bot as botmod  # noqa: E402
-import config  # noqa: E402
-import contact  # noqa: E402
-import domain  # noqa: E402
-import process  # noqa: E402
-from render import Message  # noqa: E402
-
 GOLDEN = HERE / "golden"
 FIXTURES = HERE / "fixtures"
 SHEET_LINK = "https://docs.google.com/spreadsheets/d/golden/edit"

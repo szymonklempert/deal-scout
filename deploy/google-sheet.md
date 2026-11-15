@@ -16,12 +16,12 @@ key files: just a script you paste and a shared secret.
    Deploy, allow the permissions it asks for (Google warns that the app is unverified, because it's your own
    script: Advanced > Go to ... > Allow), and copy the **Web app URL** (it ends in `/exec`).
 5. Put it in `.env` as `GOOGLE_SHEET_URL=https://script.google.com/macros/s/.../exec` and restart the bot.
-6. Copy the listings you already have: `python3 bot/sheet.py`. A "Listings" tab appears with a header row.
+6. Copy the listings you already have: `python3 -m deal_scout.sheet`. A "Listings" tab appears with a header row.
 7. Optional: put the spreadsheet's own address (from the browser, `https://docs.google.com/spreadsheets/d/...`) in
    `.env` as `GOOGLE_SHEET_LINK=...`. Every summary then gets an "Open sheet" button, and `/sheet` sends it anytime.
 
 From then on every analysis updates the sheet. If the sheet can't be reached, the Telegram summary says so; the CSV is
-saved anyway, and `python3 bot/sheet.py` copies everything again (it updates rows, it doesn't duplicate them).
+saved anyway, and `python3 -m deal_scout.sheet` copies everything again (it updates rows, it doesn't duplicate them).
 
 Notes:
 - "Anyone" means anyone with the URL can *send* to the script, which rejects anything without the secret. Nobody can

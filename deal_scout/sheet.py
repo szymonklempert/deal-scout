@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
 """Copy listing rows to a Google Sheet through a small Apps Script web app (setup: deploy/google-sheet.md).
 
 The bot calls push() after each analysis. To copy everything that is already in listings/listings.csv:
-    python3 bot/sheet.py
+    python3 -m deal_scout.sheet
 Configuration: GOOGLE_SHEET_URL (the web app URL) and GOOGLE_SHEET_SECRET in .env. Standard library only.
 """
 import json
@@ -12,9 +11,9 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
-import domain
-from config import ROOT, Settings, load_env
-from storage import Row, csv_fields, read_rows
+from deal_scout import domain
+from deal_scout.config import ROOT, Settings, load_env
+from deal_scout.storage import Row, csv_fields, read_rows
 
 
 def enabled(settings: Settings) -> bool:

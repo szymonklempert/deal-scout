@@ -1,13 +1,9 @@
 """The prompt and the JSON schema."""
-import sys
 import unittest
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from fakes import CAMPERVAN  # noqa: E402
+from fakes import CAMPERVAN
 
-import prompts  # noqa: E402
+from deal_scout import prompts
 
 
 class SchemaTests(unittest.TestCase):

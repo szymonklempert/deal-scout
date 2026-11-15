@@ -18,8 +18,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from config import Settings
-from usage import RunStats
+from deal_scout.config import Settings
+from deal_scout.usage import RunStats
 
 PROVIDERS = ("claude-code", "anthropic", "openai", "openrouter")
 OPENROUTER_URL = "https://openrouter.ai/api/v1"

@@ -1,4 +1,4 @@
-# Dev tooling only: deal-scout is not an installable package and the bot never imports these tools.
+# Dev tooling only: deal-scout runs from a checkout (python3 -m deal_scout) and the bot never imports these tools.
 # Install them with: pip install -r requirements-dev.txt
 
 [tool.ruff]
@@ -22,20 +22,15 @@ select = [
 convention = "pep257"
 
 [tool.ruff.lint.isort]
-known-first-party = [
-    "analysis", "bot", "config", "contact", "domain", "errors", "market", "process", "prompts", "providers", "render",
-    "scoring", "sheet", "storage", "usage",
-]
+known-first-party = ["deal_scout"]
 
 [tool.ruff.lint.per-file-ignores]
-# Tests put bot/ on sys.path before importing it, and test names and fakes don't need docstrings.
-"tests/*" = ["E402", "D"]
+# Test names and fakes don't need docstrings.
+"tests/*" = ["D"]
 
 [tool.mypy]
 python_version = "3.10"
-files = ["bot"]
-mypy_path = "bot"
-explicit_package_bases = true
+files = ["deal_scout"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true

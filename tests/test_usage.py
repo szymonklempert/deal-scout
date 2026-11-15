@@ -1,11 +1,9 @@
-import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-import usage  # noqa: E402
+from deal_scout import usage
 
 OUT = {"num_turns": 6, "duration_ms": 52000, "total_cost_usd": 0.3,
        "modelUsage": {"claude-opus-5-5": {"inputTokens": 1000, "cacheCreationInputTokens": 20000,

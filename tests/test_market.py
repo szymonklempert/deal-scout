@@ -1,12 +1,8 @@
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-import domain  # noqa: E402
-import market  # noqa: E402
-import storage  # noqa: E402
+from deal_scout import domain, market, storage
 
 CAMPERVAN = domain.load("campervan")
 CFG = CAMPERVAN.market

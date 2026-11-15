@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 """Market prices from your own listings: listings/market.md, rebuilt after every analysis. No AI, no network.
 
-    python3 bot/market.py        # rebuild it by hand
+    python3 -m deal_scout.market       # rebuild it by hand
 
 It groups the items in listings/listings.csv the way the domain's domain.json says (e.g. model family, year band,
 mileage band, build) and reports the asking prices per group (median and the middle half). An item reposted in
@@ -19,9 +18,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-import config
-import domain
-from storage import Row, read_rows
+from deal_scout import config, domain
+from deal_scout.storage import Row, read_rows
 
 MIN_N = 4
 VAT = 1.23

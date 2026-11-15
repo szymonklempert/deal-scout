@@ -1,20 +1,13 @@
 import dataclasses
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from fakes import CAMPERVAN, RESULT, SETTINGS, FakeRunner, check  # noqa: E402
+from fakes import CAMPERVAN, RESULT, SETTINGS, FakeRunner, check
 
-import config  # noqa: E402
-import contact  # noqa: E402
-import errors  # noqa: E402
-import process  # noqa: E402
-import storage  # noqa: E402
-from render import Message  # noqa: E402
+from deal_scout import config, contact, errors, process, storage
+from deal_scout.render import Message
 
 
 class NoSellerMessageTests(unittest.TestCase):

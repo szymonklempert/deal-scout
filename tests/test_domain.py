@@ -1,21 +1,13 @@
 """The core must work for any domain: here a made-up one for buying a used TV."""
 import json
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from fakes import FakeRunner  # noqa: E402
+from fakes import FakeRunner
 
-import config  # noqa: E402
-import domain  # noqa: E402
-import market  # noqa: E402
-import process  # noqa: E402
-import prompts  # noqa: E402
-import storage  # noqa: E402
+from deal_scout import config, domain, market, process, prompts, storage
 
 TV = {"item": "used TV", "unit": "TV", "seller_language": "English", "title_example": "LG OLED C2 55\"",
       "reference_files": {"panels.md": "panel types and burn-in risk"},

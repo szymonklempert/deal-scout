@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from config import ROOT
+from deal_scout.config import ROOT
 
 
 class DomainError(Exception):
