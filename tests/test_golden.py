@@ -2,7 +2,7 @@
 
 A made-up domain (tests/fixtures/domains/gadget) keeps these independent of the real domain files. If a change to
 one of these outputs is intended, regenerate them with
-    GOLDEN_UPDATE=1 python3 -m unittest tests.test_golden
+    GOLDEN_UPDATE=1 python3 -m unittest discover -s tests -p test_golden.py
 and review the diff of tests/golden/ before committing.
 """
 import dataclasses

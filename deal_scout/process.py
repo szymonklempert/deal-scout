@@ -68,7 +68,7 @@ def process_listing(root: Path | str, n: int, *, settings: Settings, domain: Dom
             log.info("#%s copied to the Google Sheet", nnn)
         except Exception as exc:  # the CSV is saved either way; say so and carry on
             log.error("#%s Google Sheet not updated: %s", nnn, exc)
-            summary += f"\n⚠️ Google Sheet not updated ({esc(exc)}). Retry: python3 bot/sheet.py"
+            summary += f"\n⚠️ Google Sheet not updated ({esc(exc)}). Retry: python3 -m deal_scout.sheet"
     buttons = summary_buttons(n, data, phone, sheet.link(settings))
     return [Message(text=summary[:4000], html=True, buttons=tuple(buttons))]
 
@@ -76,7 +76,7 @@ def process_listing(root: Path | str, n: int, *, settings: Settings, domain: Dom
 def main(argv: Sequence[str]) -> None:
     """Run the analysis of one listing from the command line and print the summary."""
     if len(argv) != 2 or not argv[1].isdigit():
-        sys.exit("usage: python3 bot/process.py <listing number>")
+        sys.exit("usage: python3 -m deal_scout.process <listing number>")
     load_env(ROOT / ".env")
     settings = Settings.from_env()
     root = Path(settings.data_root or ROOT)
