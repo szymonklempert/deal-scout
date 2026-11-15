@@ -156,7 +156,9 @@ Code layout (the `deal_scout/` package, one job per module; run from this folder
 
 | Module | Job |
 |---|---|
-| `bot.py`, `__main__.py` | Telegram long polling, the inbox, commands and buttons; `python3 -m deal_scout` starts it |
+| `bot.py` | the conversation: grouping messages into listings, commands, buttons, the analysis queue, the poll loop |
+| `telegram.py`, `inbox.py` | the Telegram Bot API calls (HTTPS only), and the `inbox/NNN/` files |
+| `__main__.py` | start-up wiring; `python3 -m deal_scout` starts the bot |
 | `process.py` | one listing end to end; CLI `python3 -m deal_scout.process N` |
 | `analysis.py`, `providers.py` | run Claude Code or one API request; same JSON schema for every provider |
 | `prompts.py` | the prompt and the schema, built from the domain |

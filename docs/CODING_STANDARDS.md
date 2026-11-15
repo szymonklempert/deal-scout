@@ -66,7 +66,7 @@ These are design decisions, not style. Don't change them without the owner's say
   `log.exception` or `log.error`.
 - **Log metadata only:** listing numbers, durations, counts, model names, exit codes. Never message text, seller
   names, phone numbers, tokens or the content of cards.
-- One logger, `logging.getLogger("dealscout")`; only `bot.py`'s entry point configures handlers.
+- One logger, `logging.getLogger("dealscout")`; only `__main__.py` configures handlers.
 
 ## Tests
 

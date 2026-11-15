@@ -41,8 +41,9 @@ owner's approval before editing a reference file.
 ## The code
 - **Standards:** `docs/CODING_STANDARDS.md` is binding for every code change. Run ruff, mypy and the tests before
   committing (README, "Development").
-- **The bot:** `deal_scout/bot.py` is a standard-library Python long-polling bot (outgoing connections only); start it with
-  `python3 -m deal_scout`. Config is in
+- **The bot:** `deal_scout/bot.py` is the conversation logic of a standard-library Python long-polling bot (outgoing
+  connections only); `telegram.py` is the API transport, `inbox.py` the inbox files, and `__main__.py` the start-up
+  wiring: start it with `python3 -m deal_scout`. Config is in
   `.env` (see `.env.example`).
 - **Tests:** `python3 -m unittest discover -s tests`. Shared fakes are in `tests/fakes.py`. `tests/test_golden.py`
   freezes every output the owner, the sheet or the model sees; if a change to one is intended, regenerate with

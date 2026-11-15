@@ -1,17 +1,15 @@
-"""deal-scout Telegram bot (run it with: python3 -m deal_scout).
+"""The bot's conversation logic: grouping messages into listings, confirmations, commands, button taps.
 
-You send screenshots, links and notes to a private Telegram bot. It saves them into inbox/<NNN>/ (one folder per
-listing) and answers with a short confirmation. Only the Telegram user in TELEGRAM_ALLOWED_USER_ID is served.
-Standard library only. Configuration comes from the environment or a .env file in the project root.
+Also the analysis queue and the poll loop. Messages from the private Telegram user in TELEGRAM_ALLOWED_USER_ID are
+saved into inbox/<NNN>/ and answered with a short confirmation; everyone else is ignored. The Telegram transport is
+injected (see telegram.py) and python3 -m deal_scout wires it up (see __main__.py).
 """
-import functools
 import hashlib
 import json
 import logging
 import logging.handlers
 import queue
 import re
-import sys
 import threading
 import time
 import urllib.error
@@ -22,24 +20,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
-from deal_scout import contact, domain, process, providers, render, sheet, usage
-from deal_scout.config import ROOT, Settings, load_env
+from deal_scout import render, usage
+from deal_scout.inbox import Inbox
 from deal_scout.render import Message
+from deal_scout.telegram import TelegramAPI
 
 log = logging.getLogger("dealscout")
-log.addHandler(logging.NullHandler())  # quiet unless setup_logging() adds real handlers
-
-
-def setup_logging(root: Path) -> None:
-    """Log to the terminal (or systemd journal) and to logs/bot.log (rotated, 3 x 1 MB). Never message contents."""
-    (root / "logs").mkdir(exist_ok=True)
-    fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s", "%Y-%m-%d %H:%M:%S")
-    for handler in (logging.StreamHandler(sys.stdout),
-                    logging.handlers.RotatingFileHandler(root / "logs" / "bot.log", maxBytes=1_000_000, backupCount=3,
-                                                         encoding="utf-8")):
-        handler.setFormatter(fmt)
-        log.addHandler(handler)
-    log.setLevel(logging.INFO)
+log.addHandler(logging.NullHandler())  # quiet unless __main__ adds real handlers
 
 
 def code_version() -> str:
@@ -72,109 +59,6 @@ def photo_ids(msg: dict[str, Any]) -> list[str]:
     if doc and str(doc.get("mime_type", "")).startswith("image/"):
         ids.append(doc["file_id"])
     return ids
-
-
-class TelegramAPI:
-    """The few Telegram Bot API calls we need. Outgoing HTTPS only (long polling): no open ports."""
-
-    def __init__(self, token: str) -> None:
-        """Build the API and file URLs for a bot token."""
-        self.base = f"https://api.telegram.org/bot{token}/"
-        self.file_base = f"https://api.telegram.org/file/bot{token}/"
-
-    def call(self, method: str, params: dict[str, Any] | None = None, timeout: float = 60) -> Any:
-        """Call one Bot API method and return its result, raising RuntimeError if Telegram says it failed."""
-        data = json.dumps(params or {}).encode("utf-8")
-        req = urllib.request.Request(self.base + method, data=data, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-        if not body.get("ok"):
-            raise RuntimeError(f"Telegram error in {method}: {body.get('description')}")
-        return body["result"]
-
-    def get_updates(self, offset: int, wait: int = 30) -> list[dict[str, Any]]:
-        """Long-poll for new messages and button taps, starting at offset."""
-        params = {"offset": offset, "timeout": wait, "allowed_updates": ["message", "callback_query"]}
-        return cast(list[dict[str, Any]], self.call("getUpdates", params, timeout=wait + 15))
-
-    def send_message(self, chat_id: int | None, text: str, buttons: list[tuple[str, str]] | None = None,
-                     html: bool = False) -> None:
-        """Send a text, optionally HTML-formatted and with link or callback buttons under it."""
-        params: dict[str, Any] = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
-        if html:
-            params["parse_mode"] = "HTML"
-        if buttons:  # [(label, url), ...] shown as link buttons under the message
-            # (label, "https://...") opens a link; (label, "msg:7:...") is a tap the bot answers in handle_callback
-            params["reply_markup"] = {"inline_keyboard": [
-                [{"text": label, "url": value} if value.startswith("https://") else
-                 {"text": label, "callback_data": value[:64]}] for label, value in buttons]}
-        self.call("sendMessage", params)
-
-    def answer_callback(self, callback_id: str) -> None:
-        """Acknowledge a button tap so Telegram stops its loading spinner."""
-        self.call("answerCallbackQuery", {"callback_query_id": callback_id})
-
-    def get_file_bytes(self, file_id: str) -> bytes:
-        """Download a file the owner sent, by its Telegram file id."""
-        info = self.call("getFile", {"file_id": file_id})
-        with urllib.request.urlopen(self.file_base + info["file_path"], timeout=60) as resp:
-            return cast(bytes, resp.read())
-
-
-class Inbox:
-    """inbox/<NNN>/ holds photo_01.jpg..., notes.txt, links.txt and meta.json for one listing."""
-
-    def __init__(self, root: Path) -> None:
-        """Open (and create if needed) the inbox folder under the project root."""
-        self.dir = root / "inbox"
-        self.dir.mkdir(parents=True, exist_ok=True)
-
-    def next_number(self) -> int:
-        """Return the number the next new listing gets."""
-        nums = [int(p.name) for p in self.dir.iterdir() if p.is_dir() and p.name.isdigit()]
-        return (max(nums) + 1) if nums else 1
-
-    def folder(self, n: int) -> Path:
-        """Return listing n's folder, creating it if needed."""
-        path = self.dir / f"{n:03d}"
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    def add_photo(self, n: int, data: bytes, ext: str = ".jpg") -> Path:
-        """Save an image as the listing's next photo_NN file and return its path."""
-        folder = self.folder(n)
-        count = len(list(folder.glob("photo_*")))
-        path = folder / f"photo_{count + 1:02d}{ext}"
-        path.write_bytes(data)
-        return path
-
-    def add_note(self, n: int, text: str, when: float) -> None:
-        """Append a timestamped note to the listing's notes.txt."""
-        with open(self.folder(n) / "notes.txt", "a", encoding="utf-8") as f:
-            stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(when))
-            f.write(f"[{stamp}] {text}\n")
-
-    def add_links(self, n: int, links: Sequence[str]) -> list[str]:
-        """Append the links not seen before to links.txt and return the new ones."""
-        path = self.folder(n) / "links.txt"
-        known = set(path.read_text(encoding="utf-8").split()) if path.exists() else set()
-        new = [u for u in links if u not in known]
-        if new:
-            with open(path, "a", encoding="utf-8") as f:
-                f.write("\n".join(new) + "\n")
-        return new
-
-    def summary(self, n: int) -> tuple[int, list[str]]:
-        """Return the listing's photo count and its saved links."""
-        folder = self.dir / f"{n:03d}"
-        photos = len(list(folder.glob("photo_*")))
-        links = (folder / "links.txt").read_text(encoding="utf-8").split() if (folder / "links.txt").exists() else []
-        return photos, links
-
-    def latest(self, count: int = 10) -> list[int]:
-        """Return the numbers of the most recent listings, oldest first."""
-        nums = sorted(int(p.name) for p in self.dir.iterdir() if p.is_dir() and p.name.isdigit())
-        return nums[-count:]
 
 
 class CurrentListing(TypedDict):
@@ -523,36 +407,3 @@ class Bot:
                 self.state["offset"] = update["update_id"] + 1
                 self.save_state()
             self.tick()
-
-
-def main() -> None:
-    """Start the bot: read the settings once, wire the analysis and contact helpers in, and poll Telegram."""
-    setup_logging(ROOT)
-    load_env(ROOT / ".env")
-    settings = Settings.from_env()
-    if not settings.telegram_token:
-        sys.exit("TELEGRAM_BOT_TOKEN is not set. Copy .env.example to .env and fill it in.")
-    mode = settings.analysis
-    try:
-        d = domain.load(settings.domain)
-    except domain.DomainError as exc:
-        sys.exit(str(exc))
-
-    processor = functools.partial(process.process_listing, ROOT, settings=settings, domain=d)
-    analyse = mode in ("manual", "auto")
-    bot = Bot(TelegramAPI(settings.telegram_token), ROOT, settings.allowed_user_id, settings.group_window_seconds,
-              processor=processor if analyse else None, auto_analyse=(mode == "auto"),
-              contact=functools.partial(contact.contact_for, ROOT), sheet_link=sheet.link(settings),
-              seller_text=functools.partial(contact.seller_text, ROOT))
-    try:
-        provider = providers.name(settings)
-        engine = f"{provider}, model {providers.model_for(provider, settings)}"
-    except providers.ProviderError as exc:
-        engine = f"misconfigured: {exc}"
-    log.info("Domain: %s. Analysis: %s (%s). Google Sheet %s", d.name, mode if analyse else "off",
-             engine, "on" if settings.sheet_url else "off")
-    bot.run()
-
-
-if __name__ == "__main__":
-    main()
