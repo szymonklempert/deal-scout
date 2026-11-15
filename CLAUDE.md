@@ -2,6 +2,7 @@
 
 The owner collects second-hand listings (screenshots, links, notes) by sending them to a private Telegram bot. The
 bot saves them into `inbox/<NNN>/` (photo_NN.jpg, notes.txt, links.txt). You turn them into decision-ready cards.
+A folder may also hold the seller's answers to the owner's questions: `replies.txt` and `reply_NN.jpg`.
 What is being bought is the active domain: `DOMAIN` in `.env` (default `campervan`), with its files in
 `domains/<name>/` (see `domains/README.md`).
 
@@ -13,6 +14,9 @@ What is being bought is the active domain: `DOMAIN` in `.env` (default `camperva
    the right restrictions, scores in code, and updates `listings/` (card, CSV, INDEX, market.md, Google Sheet).
    If you write a card by hand instead: look at every photo, then notes.txt and links.txt, and use the domain's
    `card-template.md`.
+   The seller's replies override the listing where they differ, and what they answered is no longer missing. With
+   replies, the seller message and SMS become a short follow-up: thank them, ask only what is still open, and if
+   nothing important is, propose a viewing.
 3. Numbers read from images can be wrong. Put them in the facts table with a certainty level, and list anything you
    could not read as a question. Never invent a value; write "not shown".
 4. Mark legal or technical claims you are not sure about as "verify".
@@ -74,6 +78,9 @@ anything.
   - `deal_scout/storage.py` the CSV and `INDEX.md`;
   - `deal_scout/render.py` Telegram HTML;
   - `deal_scout/contact.py` phone numbers and seller drafts;
+  - `deal_scout/replies.py` the summary line about what the seller's reply changed (pure);
+  - `deal_scout/corrections.py` applies the owner's Feedback taps to a listing's stored data;
+  - `deal_scout/feedback_menu.py` the Feedback screens and their buttons (pure);
   - `deal_scout/providers.py` the API providers;
   - `deal_scout/config.py` reads `.env` and the environment once into `Settings` (nothing else reads `os.environ`) and
     defines the project root;

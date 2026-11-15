@@ -23,7 +23,7 @@ Fits the budget and the must-haves, but there is no word on chain history or the
 …one line per spec…
 
 🚩 OM651 with no chain history · "4 miejsca" may mean sleeping places only
-[💬 WhatsApp message]  [✉️ SMS]  [📝 Feedback]  [📊 Open sheet]
+[💬 WhatsApp message]  [✉️ SMS]  [📨 Seller replied]  [📝 Feedback]  [📊 Open sheet]
 ```
 
 - **Scores you can trust.** The model checks each of your criteria as met, missed or unknown, and scores each spec
@@ -33,6 +33,9 @@ Fits the budget and the must-haves, but there is no word on chain history or the
 - **What's missing, and the questions to close it.** Tap a button to get a polite first message in the seller's
   language, asking only what the listing leaves open. On WhatsApp it opens the chat with the text already typed; for
   SMS you get a version that copies with one tap.
+- **The seller's answer, built in.** Tap 📨 Seller replied, then paste the seller's reply or send screenshots of it,
+  and tap Re-analyse. You get an updated score, one line saying what changed and which questions were answered, and a
+  short follow-up draft that asks only what is still open (or proposes a viewing).
 - **Scores you can correct.** The 📝 Feedback button opens a menu that edits itself in place: pick a spec and the
   right score, or a criterion check and met, missed or unknown, and optionally reply with a reason. Your corrections
   are kept when the listing is analysed again, shown as ✏️ in the summary and the CSV, and logged for a later review
@@ -123,6 +126,7 @@ tools, write access only to `listings/`, and no web access.
 | `/done`, `/done 7` | analyse the open listing, or re-analyse #7 |
 | `/phone 7 600 123 456` | add the seller's number to #7's WhatsApp message |
 | `/list`, `/market`, `/sheet` | recent listings, market prices, open the Google Sheet |
+| 📨 Seller replied (button under a summary) | send the seller's reply (text or screenshots) for that listing, then Re-analyse or `/done`; ends after 15 quiet minutes |
 | 📝 Feedback (button under a summary) | correct a spec score or a criterion check, with an optional reason |
 | `/status`, `/usage` | is the bot up to date and busy; how much Claude it used |
 
@@ -170,4 +174,6 @@ Code layout (the `deal_scout/` package, one job per module; run from this folder
 | `scoring.py` | the score from the criteria checks (pure functions) |
 | `storage.py`, `market.py`, `sheet.py` | the CSV and INDEX, market prices (`python3 -m deal_scout.market`), the Google Sheet (`python3 -m deal_scout.sheet`) |
 | `render.py`, `contact.py` | Telegram HTML; phone numbers and seller drafts |
+| `replies.py` | the summary line about what the seller's reply changed (pure) |
+| `corrections.py`, `feedback_menu.py`, `feedback.py` | the 📝 Feedback flow: applying a tap to the stored data, the menu screens, the overrides and their log |
 | `config.py`, `domain.py`, `usage.py` | settings from `.env`, the active domain, usage records (`python3 -m deal_scout.usage` prints totals) |
