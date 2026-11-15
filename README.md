@@ -2,7 +2,8 @@
 
 A private Telegram assistant that reviews second-hand listings before you buy. You forward screenshots of a listing
 from your phone. A few minutes later you get back a scored review, the questions the listing leaves open, and a
-ready-to-send message for the seller. It runs on your Claude subscription, through Claude Code.
+ready-to-send message for the seller. It runs on your Claude subscription through Claude Code, or on the Claude
+API, OpenAI or OpenRouter.
 
 What it reviews comes from a **domain**, a folder of plain files. The first domain, `domains/campervan/`, is for
 buying a used campervan in Poland. A convertible or a TV would be another folder, with no code changes.
@@ -56,17 +57,42 @@ phone ──screenshots──▶ Telegram bot ──▶ inbox/NNN/
 
 - **Standard-library Python only.** The bot makes outgoing calls only (Telegram long polling), so no ports are
   open.
-- **Claude Code runs as a sandboxed step.** It has only the Read, Write, Edit and Glob tools, writes only to
-  `listings/`, and has no shell or web access. A listing is untrusted text from a stranger, so even a listing
-  written to manipulate the model can't reach the network or anything outside the project.
+- **The model can't act on what it reads.** Claude Code runs with only the Read, Write, Edit and Glob tools,
+  writes only to `listings/`, and has no shell or web access. The API providers get no tools at all and return JSON
+  only. A listing is untrusted text from a stranger, so even a listing written to manipulate the model can't reach
+  the network or anything outside the project.
 - **Privacy:**
-  - Seller phone numbers are never written to disk; they exist only inside a button.
+  - Seller phone numbers are never written to disk; they exist only inside a button. If a model puts one in a
+    card anyway, it's removed.
   - Message contents are never logged.
   - `inbox/`, `listings/`, `logs/` and your `criteria.md` are git-ignored.
 - **It never contacts anyone.** It prepares messages, and you send them.
 - **Usage:**
   - every run's tokens and list-price cost go to `logs/usage.jsonl` (`/usage` shows the totals);
-  - the analysis never receives an API key, so it always runs on the Claude subscription.
+  - with `claude-code`, the analysis never receives an API key, so it always runs on the Claude subscription.
+
+## Choosing the model provider
+
+Set `PROVIDER` in `.env`:
+
+| `PROVIDER` | Runs on | Needs |
+|---|---|---|
+| `claude-code` (default) | Claude Code, on your Claude subscription; no per-listing cost | Claude Code logged in |
+| `anthropic` | Claude API, paid per use (default model `claude-opus-5-5`) | `ANTHROPIC_API_KEY`, `pip install anthropic` |
+| `openai` | OpenAI API | `OPENAI_API_KEY`, `MODEL`, `pip install openai` |
+| `openrouter` | any model on OpenRouter (Claude, GPT, Gemini, …) | `OPENROUTER_API_KEY`, `MODEL`, `pip install openai` |
+
+**Claude Code:** reads the files and writes the card itself. It runs sandboxed: only the Read, Write, Edit and Glob
+tools, write access only to `listings/`, and no web access.
+
+**API providers:** one request per listing.
+- **The request:** the instructions and the domain's files go in the system prompt, which is the same for every
+  listing, so the provider can cache it. The photos, notes and market prices go in the user message.
+- **The answer:** a strict JSON schema, including the card's text. Every provider returns the same structure, so
+  scoring, the sheet and the Telegram output don't change.
+- **Model choice:** for `openai` and `openrouter`, pick a model that accepts images and JSON-schema output.
+- **Usage:** `/usage` counts tokens for every provider. Costs come from OpenRouter's own report or from
+  `PRICE_PER_MTOK` in `.env`.
 
 ## Bot commands
 
@@ -91,6 +117,7 @@ Optional extras:
 - **Running on an always-on Linux box:** `deploy/README.md`
 - **Adding a domain:** `domains/README.md`
 
-Requirements: Python 3.10+, and [Claude Code](https://code.claude.com) logged in with a Claude subscription.
+Requirements: Python 3.10+. Then either [Claude Code](https://code.claude.com) logged in with a Claude subscription
+(the default), or an API key and SDK for one of the other providers.
 
 Tests (no network, no Claude calls): `python3 -m unittest discover -s tests`

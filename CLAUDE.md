@@ -44,8 +44,12 @@ owner's approval before editing a reference file.
 - **Tests:** `python3 -m unittest discover -s tests`. Deployment: `deploy/README.md`.
 - **Changing the bot:** keep it standard library only, keep the allowlist behaviour (strangers get no answer), and
   add a test.
-- **Analysis:** `bot/process.py` runs `claude -p` with no shell or web tools, write access only to `listings/`, and
-  no API key in its environment; keep it that way.
+- **Analysis:** `bot/process.py` runs the analysis with `PROVIDER` from `.env` (`bot/providers.py`).
+  - `claude-code` (default) runs `claude -p` with no shell or web tools, write access only to `listings/`, and no
+    API key in its environment.
+  - `anthropic`, `openai` and `openrouter` make one structured-output request with no tools; their SDKs are imported
+    only when chosen.
+  - Keep these restrictions, and keep every provider returning the same schema.
 - **Domains:** nothing in `bot/` may be specific to one domain. Domain knowledge goes in `domains/<name>/`.
 - **Other modules:**
   - `bot/sheet.py` copies rows to a Google Sheet through `deploy/google-sheet.gs`;

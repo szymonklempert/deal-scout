@@ -451,8 +451,13 @@ def main():
               int(os.environ.get("GROUP_WINDOW_SECONDS", "180")), processor=processor, auto_analyse=(mode == "auto"),
               contact=lambda n, phone: process.contact_for(ROOT, n, phone), sheet_link=process.sheet.link(),
               seller_text=lambda n, kind, phone: process.seller_text(ROOT, n, kind, phone))
-    log.info("Domain: %s. Analysis: %s, model %s, Google Sheet %s", process.DOMAIN.name, mode if processor else "off",
-             os.environ.get("CLAUDE_MODEL") or "opus", "on" if os.environ.get("GOOGLE_SHEET_URL") else "off")
+    import providers
+    try:
+        engine = "%s, model %s" % (providers.name(), providers.model_for(providers.name()))
+    except providers.ProviderError as exc:
+        engine = "misconfigured: %s" % exc
+    log.info("Domain: %s. Analysis: %s (%s). Google Sheet %s", process.DOMAIN.name, mode if processor else "off",
+             engine, "on" if os.environ.get("GOOGLE_SHEET_URL") else "off")
     bot.run()
 
 

@@ -40,6 +40,19 @@ def record(root, listing, out, ok):
     return rec
 
 
+def record_api(root, listing, ok, provider, model, stats):
+    """Append one API-provider run (stats from providers.call; cost_usd may be None when unknown)."""
+    rec = {"ts": round(time.time()), "listing": listing, "ok": bool(ok), "provider": provider, "models": [model],
+           "turns": stats.get("turns"), "duration_s": stats.get("duration_s", 0),
+           "input_tokens": stats.get("input_tokens", 0), "cached_tokens": stats.get("cached_tokens", 0),
+           "output_tokens": stats.get("output_tokens", 0), "cost_usd": stats.get("cost_usd") or 0}
+    path = Path(root) / "logs" / "usage.jsonl"
+    path.parent.mkdir(exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(rec) + "\n")
+    return rec
+
+
 def load(path):
     if not Path(path).exists():
         return []

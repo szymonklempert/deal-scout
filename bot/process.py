@@ -3,8 +3,9 @@
 
     python3 bot/process.py 7        # analyse inbox/007/
 
-Claude Code (`claude -p`, logged in with your Claude subscription) reads the screenshots and the active domain's
-files (domains/<name>/), writes listings/007.md, and returns the facts as JSON. This script then calculates the score
+The model (by default Claude Code, `claude -p`, on your Claude subscription; or an API provider, see providers.py)
+reads the screenshots and the active domain's files (domains/<name>/), writes the card listings/007.md, and returns
+the facts as JSON. This script then calculates the score
 from Claude's criteria checks (so the same checks always give the same score), saves listings/007.json, rewrites
 listings/listings.csv and listings/INDEX.md, and returns a short summary for Telegram. Nothing here is specific to
 what is being bought: that comes from the domain (bot/domain.py). Standard library only.
@@ -23,6 +24,7 @@ from pathlib import Path
 
 import domain as domains
 import market
+import providers
 import sheet
 import usage
 
@@ -46,7 +48,7 @@ FACT = {
     "properties": {
         "field": {"type": "string"},
         "value": {"type": "string"},
-        "certainty": {"enum": ["read", "unclear", "not shown"]},
+        "certainty": {"type": "string", "enum": ["read", "unclear", "not shown"]},
     },
 }
 CHECK = {
@@ -55,25 +57,25 @@ CHECK = {
     "required": ["criterion", "result", "deal_breaker", "importance"],
     "properties": {
         "criterion": {"type": "string"},
-        "importance": {"enum": ["required", "big plus", "nice to have"]},
-        "result": {"enum": ["met", "missed", "unknown"]},
+        "importance": {"type": "string", "enum": ["required", "big plus", "nice to have"]},
+        "result": {"type": "string", "enum": ["met", "missed", "unknown"]},
         "deal_breaker": {"type": "boolean"},
-        "note": {"type": "string"},
     },
 }
 
 
-def schema(d=None):
-    """The JSON shape Claude must return: fixed fields plus the domain's specs and categories."""
+def schema(d=None, card=False):
+    """The JSON shape the model must return: fixed fields plus the domain's specs and categories. With card=True (API
+    providers, which can't write files) it also carries the card's text."""
     d = d or DOMAIN
     spec = {
         "type": "object",
         "additionalProperties": False,
         "required": ["name", "value", "score"],
         "properties": {
-            "name": {"enum": d.specs},
+            "name": {"type": "string", "enum": d.specs},
             "value": {"type": "string"},
-            "score": {"type": ["integer", "null"], "minimum": 0, "maximum": 10},
+            "score": {"type": ["integer", "null"]},  # 0-10; clamped in ordered_specs (not every provider takes limits)
         },
     }
     props = {
@@ -93,20 +95,22 @@ def schema(d=None):
         "criteria_checks": {"type": "array", "items": CHECK},
         "missing": {"type": "array", "items": {"type": "string"}},
         "red_flags": {"type": "array", "items": {"type": "string"}},
-        "verdict": {"enum": ["worth a visit", "ask first", "skip"]},
+        "verdict": {"type": "string", "enum": ["worth a visit", "ask first", "skip"]},
         "summary": {"type": "string"},
         "seller_message": {"type": "string"},
         "seller_sms": {"type": "string"},
         "seller_phone": {"type": ["string", "null"]},
-        "contact_preference": {"enum": ["whatsapp", "sms", "phone call", "messenger", "not stated"]},
+        "contact_preference": {"type": "string", "enum": ["whatsapp", "sms", "phone call", "messenger", "not stated"]},
     }
     for key, cat in d.categories.items():
-        props[key] = {"enum": list(cat["values"])}
+        props[key] = {"type": "string", "enum": list(cat["values"])}
+    if card:
+        props["card_markdown"] = {"type": "string"}
     return {"type": "object", "additionalProperties": False, "required": list(props), "properties": props}
 
 
-PROMPT = """You are reviewing a listing for a {item}. Process only the listing in inbox/{nnn}/, following CLAUDE.md.
-First read these files in {ddir}/: {criteria}checklist.md, card-template.md{refs}.
+INTRO_CLAUDE_CODE = """You are reviewing a listing for a {item}. Process only the listing in inbox/{nnn}/, following
+CLAUDE.md. First read these files in {ddir}/: {criteria}checklist.md, card-template.md{refs}.
 Also read listings/market.md if it exists (asking prices from the owner's own listings).
 Then look at every photo in inbox/{nnn}/ and read notes.txt and links.txt if they exist.
 
@@ -114,7 +118,18 @@ Write listings/{nnn}.md from {ddir}/card-template.md. In its fit section list wh
 any deal breakers hit, but give no numeric score: a script calculates the score from your criteria checks.
 Do not create or edit any other file (a script updates listings/INDEX.md and the spreadsheet).
 
-Rules for this kind of listing (from {ddir}/instructions.md):
+"""
+
+INTRO_API = """You are reviewing a listing for a {item} for a private buyer. The buyer's files follow these
+instructions: {criteria}checklist.md, card-template.md{refs}. The listing itself (photos, the owner's notes and links,
+and market prices from the owner's own listings if any) is in the user message. Use only what you are given.
+
+Write the listing card in card_markdown, following card-template.md. In its fit section list what is met, missed and
+unknown and any deal breakers hit, but give no numeric score: a script calculates the score from your criteria checks.
+
+"""
+
+RULES = """Rules for this kind of listing (from {ddir}/instructions.md):
 {instructions}
 
 Then return the structured result:
@@ -160,11 +175,12 @@ Then return the structured result:
 Put the seller's name only in the card's seller line and in seller_name. Never write phone numbers into any file."""
 
 
-def prompt(nnn, d=None):
+def prompt(nnn, d=None, api=False):
+    """The instructions. Claude Code reads the files itself; for API providers the files are appended (api_files)."""
     d = d or DOMAIN
     cats = "".join("- %s: one of the allowed values%s; \"unknown\" when the listing doesn't let you tell.\n"
                    % (key, ": " + cat["help"] if cat.get("help") else "") for key, cat in d.categories.items())
-    return PROMPT.format(
+    return ((INTRO_API if api else INTRO_CLAUDE_CODE) + RULES).format(
         item=d.item, unit=d.unit, nnn=nnn, ddir=d.rel, language=d.seller_language,
         criteria="criteria.md, " if d.has_criteria() else "",
         refs="".join(", %s (%s)" % (f, what) for f, what in d.reference_files.items()),
@@ -234,6 +250,65 @@ def run_claude(root, nnn, model, runner=subprocess.run, timeout=900):
     return out["structured_output"]
 
 
+def api_request(root, nnn, d=None):
+    """(system, user_text, photo paths) for an API provider. The system prompt holds the instructions and the domain's
+    files (the same for every listing, so providers can cache them); the listing goes in the user turn."""
+    d = d or DOMAIN
+    files = (["criteria.md"] if d.has_criteria() else []) + ["checklist.md", "card-template.md"] + list(d.reference_files)
+    parts = [prompt(nnn, d, api=True)]
+    for name in files:
+        path = d.dir / name
+        if path.exists():
+            parts.append("\n===== %s =====\n%s" % (name, path.read_text(encoding="utf-8").strip()))
+    folder = Path(root) / "inbox" / nnn
+    user = ["Listing #%s." % nnn]
+    for name, label in (("notes.txt", "The owner's notes"), ("links.txt", "Links")):
+        if (folder / name).exists():
+            user.append("%s:\n%s" % (label, (folder / name).read_text(encoding="utf-8").strip()))
+    market_md = Path(root) / "listings" / "market.md"
+    if market_md.exists():
+        user.append("Market prices from the owner's own listings:\n" + market_md.read_text(encoding="utf-8").strip())
+    photos = sorted(x for x in folder.glob("photo_*") if x.is_file())
+    user.append("%d photo(s) of the listing are attached, in order." % len(photos))
+    return "\n".join(parts), "\n\n".join(user), photos
+
+
+def analyse(root, nnn, runner=subprocess.run, client=None):
+    """Run the analysis with PROVIDER from .env. API providers return the card's text, written here."""
+    try:
+        provider = providers.name()
+        model = providers.model_for(provider)
+    except providers.ProviderError as exc:
+        raise ProcessError(str(exc))
+    if provider == "claude-code":
+        return run_claude(root, nnn, model, runner=runner)
+    system, user_text, photos = api_request(root, nnn)
+    try:
+        data, stats = providers.call(provider, model, system, user_text, providers.image_blocks(photos),
+                                     schema(card=True), client=client)
+    except Exception as exc:  # ProviderError or an SDK error (auth, rate limit, network)
+        usage.record_api(root, int(nnn), False, provider, model, {})
+        raise ProcessError("%s: %s" % (provider, exc))
+    if stats.get("cost_usd") is None:
+        stats["cost_usd"] = providers.price(stats["input_tokens"], stats["output_tokens"])
+    usage.record_api(root, int(nnn), True, provider, model, stats)
+    card = (data.pop("card_markdown", "") or "").strip()
+    (Path(root) / "listings" / (nnn + ".md")).write_text(card + "\n", encoding="utf-8")
+    return data
+
+
+def scrub_phone(path, raw):
+    """Remove the seller's phone number from the card if the model wrote it there anyway."""
+    digits = re.sub(r"\D", "", str(raw or ""))
+    if len(digits) < 9 or not path.exists():
+        return
+    text = path.read_text(encoding="utf-8")
+    # optional "+48" / "0048" prefix, an optional "(", then the last 9 digits with any separators between them
+    cleaned = re.sub(r"(?:(?:\+|00)?\d{2}[\s\-.]*)?\(?" + r"[\s\-.()]*".join(digits[-9:]), "[phone removed]", text)
+    if cleaned != text:
+        path.write_text(cleaned, encoding="utf-8")
+
+
 def ordered_specs(data):
     """[(name, value, score)] for every spec of the domain, in order; anything Claude left out counts as not shown."""
     got = {s.get("name"): s for s in data.get("specs") or []}
@@ -242,6 +317,8 @@ def ordered_specs(data):
         s = got.get(name) or {}
         value = (s.get("value") or "").strip() or "not shown"
         score = s.get("score") if value.lower() != "not shown" else None
+        if score is not None:
+            score = max(0, min(10, int(score))) if isinstance(score, (int, float)) else None
         out.append((name, value, score))
     return out
 
@@ -484,15 +561,19 @@ def summary_text(n, data, row, others=(), phone=None):
     return "\n".join(head) + "\n\n" + "\n".join(specs) + "\n\n" + "\n".join(tail)
 
 
-def process_listing(root, n, model=None, runner=subprocess.run, pusher=sheet.push):
+def process_listing(root, n, model=None, runner=subprocess.run, pusher=sheet.push, client=None):
     root = Path(root)
     nnn = "%03d" % n
     if not (root / "inbox" / nnn).is_dir():
         raise ProcessError("inbox/%s does not exist" % nnn)
     listings = root / "listings"
     listings.mkdir(exist_ok=True)
-    data = run_claude(root, nnn, model or os.environ.get("CLAUDE_MODEL") or "opus", runner=runner)
-    phone = normalise_phone(data.pop("seller_phone", None))  # used for the button only, never saved
+    if model:  # an explicit model (tests, a one-off run) wins over .env
+        os.environ["MODEL"] = model
+    data = analyse(root, nnn, runner=runner, client=client)
+    raw_phone = data.pop("seller_phone", None)
+    phone = normalise_phone(raw_phone)  # used for the button only, never saved
+    scrub_phone(listings / (nnn + ".md"), raw_phone)
     (listings / (nnn + ".json")).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     rows = read_rows(listings / "listings.csv")
     links = root / "inbox" / nnn / "links.txt"
