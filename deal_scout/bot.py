@@ -249,12 +249,11 @@ class Bot:
     def save_message(self, msg: dict[str, Any], text: str, ids: Sequence[str]) -> None:
         """Save a message's photos, note and links into its listing and queue the "saved" confirmation."""
         n, is_new = self.current_listing(msg.get("media_group_id"))
-        log.info("#%d: saved %d photo(s)%s", n, len(ids), " and text" if text else "")
-        for file_id in ids:
-            self.inbox.add_photo(n, self.api.get_file_bytes(file_id))
+        failed = self.download_photos(n, ids, self.inbox.add_photo)
         if text:
             self.inbox.add_note(n, text, msg.get("date") or self.clock())
             self.inbox.add_links(n, URL_RE.findall(text))
+        log.info("#%d: saved %d photo(s)%s", n, len(ids) - failed, " and text" if text else "")
         # Confirm once, after the photos stop arriving (an album comes as several messages), with the full count.
         self.start_ack(n, reply=False)
 
@@ -267,14 +266,28 @@ class Bot:
     def save_reply(self, attach: PendingAttach, msg: dict[str, Any], text: str, ids: Sequence[str]) -> None:
         """Save a message as the seller's reply to the listing in reply mode, and keep the mode open."""
         n = attach.n
-        log.info("#%d: saved %d reply photo(s)%s", n, len(ids), " and text" if text else "")
-        for file_id in ids:
-            self.inbox.add_reply_photo(n, self.api.get_file_bytes(file_id))
+        failed = self.download_photos(n, ids, self.inbox.add_reply_photo)
         if text:
             self.inbox.add_reply(n, text, msg.get("date") or self.clock())
+        log.info("#%d: saved %d reply photo(s)%s", n, len(ids) - failed, " and text" if text else "")
         attach.until = self.clock() + ATTACH_SECONDS
         attach.saved += 1
         self.start_ack(n, reply=True)
+
+    def download_photos(self, n: int, ids: Sequence[str], save: Callable[[int, bytes], object]) -> int:
+        """Download and save each photo of a message; tell the owner about any that failed, and return how many."""
+        failed = 0
+        for file_id in ids:
+            try:
+                save(n, self.api.get_file_bytes(file_id))
+            except Exception as exc:  # one lost photo must not drop the rest of the message, or go unnoticed
+                failed += 1
+                log.warning("#%d: a photo could not be downloaded (%s)", n, type(exc).__name__)
+        if failed:
+            again = "it" if failed == 1 else "them"
+            self.reply(self.allowed, f"#{n}: {failed} photo(s) couldn't be downloaded (Telegram didn't answer in "
+                                     f"time). Please send {again} again.")
+        return failed
 
     ACK_DELAY = 2  # seconds of quiet before confirming what was saved
 

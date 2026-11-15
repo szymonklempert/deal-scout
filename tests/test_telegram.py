@@ -1,6 +1,6 @@
 import unittest
 
-from deal_scout.telegram import TelegramAPI
+from deal_scout.telegram import DOWNLOAD_ATTEMPTS, TelegramAPI
 
 
 class SendMessageTest(unittest.TestCase):
@@ -38,6 +38,42 @@ class SendMessageTest(unittest.TestCase):
         self.assertEqual((params["chat_id"], params["message_id"], params["parse_mode"]), (7, 42, "HTML"))
         self.assertEqual(params["reply_markup"]["inline_keyboard"],
                          [[{"text": "A", "callback_data": "fb:1"}, {"text": "B", "callback_data": "fd:1"}]])
+
+
+
+class DownloadTest(unittest.TestCase):
+    def api(self, outcomes):
+        """A TelegramAPI whose single download attempts follow `outcomes` (an exception or bytes each)."""
+        api = TelegramAPI("token", sleep=self.waits.append)
+        attempts = iter(outcomes)
+
+        def download(file_id):
+            outcome = next(attempts)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+        api.download = download  # type: ignore[method-assign]
+        return api
+
+    def setUp(self):
+        self.waits = []
+
+    def test_a_timeout_is_retried(self):
+        api = self.api([TimeoutError("timed out"), ConnectionResetError("reset"), b"IMG"])
+        self.assertEqual(api.get_file_bytes("f"), b"IMG")
+        self.assertEqual(self.waits, [1, 2])
+
+    def test_gives_up_after_the_last_attempt(self):
+        api = self.api([TimeoutError("timed out")] * DOWNLOAD_ATTEMPTS)
+        with self.assertRaises(TimeoutError):
+            api.get_file_bytes("f")
+        self.assertEqual(len(self.waits), DOWNLOAD_ATTEMPTS - 1)
+
+    def test_a_telegram_error_is_not_retried(self):
+        api = self.api([RuntimeError("Telegram error in getFile: file is too big"), b"IMG"])
+        with self.assertRaises(RuntimeError):
+            api.get_file_bytes("f")
+        self.assertEqual(self.waits, [])
 
 
 if __name__ == "__main__":

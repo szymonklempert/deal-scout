@@ -32,6 +32,8 @@ class FakeAPI:
         self.answered = getattr(self, "answered", []) + [callback_id]
 
     def get_file_bytes(self, file_id):
+        if file_id.startswith("lost"):  # TelegramAPI already retried; it still timed out
+            raise TimeoutError("The read operation timed out")
         return b"IMG:" + file_id.encode()
 
 
@@ -90,6 +92,17 @@ class BotTests(unittest.TestCase):
         self.assertIn("https://www.facebook.com/marketplace/item/123",
                       (self.root / "inbox/001/links.txt").read_text())
         self.assertIn("#1: 1 photo(s), 1 link(s)", self.api.sent[-1])
+
+    def test_photo_that_cannot_be_downloaded_is_reported_and_the_rest_kept(self):
+        self.bot.handle_update(msg(photo="a", group="g"))
+        self.bot.handle_update(msg(photo="lost-b", group="g"))
+        self.bot.handle_update(msg(photo="c", group="g", caption="https://example.com/x"))
+        self.assertEqual(self.api.sent, ["#1: 1 photo(s) couldn't be downloaded (Telegram didn't answer in time). "
+                                         "Please send it again."])
+        self.clock.t += 3
+        self.bot.tick()
+        self.assertEqual(len(list((self.root / "inbox/001").glob("photo_*"))), 2)
+        self.assertIn("#1: 2 photo(s), 1 link(s)", self.api.sent[-1])
 
     def test_window_expiry_starts_new_listing(self):
         self.bot.handle_update(msg(photo="a"))

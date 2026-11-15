@@ -1,14 +1,21 @@
 """The few Telegram Bot API calls the bot uses: outgoing HTTPS only (long polling, no open ports)."""
+import http.client
 import json
+import time
 import urllib.request
+from collections.abc import Callable
 from typing import Any, cast
+
+DOWNLOAD_ATTEMPTS = 3
+DOWNLOAD_TIMEOUT = 20  # seconds per attempt: one stuck download must not hold up the bot for long
 
 
 class TelegramAPI:
     """The few Telegram Bot API calls we need. Outgoing HTTPS only (long polling): no open ports."""
 
-    def __init__(self, token: str) -> None:
+    def __init__(self, token: str, sleep: Callable[[float], None] = time.sleep) -> None:
         """Build the API and file URLs for a bot token."""
+        self.sleep = sleep
         self.base = f"https://api.telegram.org/bot{token}/"
         self.file_base = f"https://api.telegram.org/file/bot{token}/"
 
@@ -59,7 +66,18 @@ class TelegramAPI:
         self.call("answerCallbackQuery", {"callback_query_id": callback_id})
 
     def get_file_bytes(self, file_id: str) -> bytes:
-        """Download a file the owner sent, by its Telegram file id."""
-        info = self.call("getFile", {"file_id": file_id})
-        with urllib.request.urlopen(self.file_base + info["file_path"], timeout=60) as resp:
+        """Download a file the owner sent, by its Telegram file id, retrying timeouts and dropped connections."""
+        for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+            try:
+                return self.download(file_id)
+            except (OSError, http.client.HTTPException):  # timeouts, resets, HTTP 5xx; not Telegram's "ok": false
+                if attempt == DOWNLOAD_ATTEMPTS:
+                    raise
+                self.sleep(attempt)
+        raise AssertionError("unreachable")
+
+    def download(self, file_id: str) -> bytes:
+        """Fetch a file once: ask Telegram where it is, then download it."""
+        info = self.call("getFile", {"file_id": file_id}, timeout=DOWNLOAD_TIMEOUT)
+        with urllib.request.urlopen(self.file_base + info["file_path"], timeout=DOWNLOAD_TIMEOUT) as resp:
             return cast(bytes, resp.read())
