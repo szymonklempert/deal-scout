@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from deal_scout.feedback import spec_marks
 from deal_scout.prompts import Listing
 from deal_scout.scoring import ordered_specs
 from deal_scout.storage import Row
@@ -60,6 +61,8 @@ def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | 
         buttons.append(("💬 WhatsApp message", f"msg:{n}:{phone or ''}"))
     if (data.get("seller_sms") or "").strip():
         buttons.append(("✉️ SMS", f"sms:{n}:{phone or ''}"))
+    if data.get("specs") or data.get("criteria_checks"):
+        buttons.append(("📝 Feedback", f"fx:{n}"))
     if sheet_link:
         buttons.append(("📊 Open sheet", sheet_link))
     return buttons
@@ -81,9 +84,15 @@ def summary_text(n: int, data: Listing, row: Row, specs: list[str], others: Sequ
     if data.get("summary"):
         head.append(f"<i>{esc(data['summary'])}</i>")
 
+    marks = spec_marks(data)
     spec_lines = []
     for name, value, s in ordered_specs(data, specs):
-        if s is None:
+        if name in marks:
+            was = marks[name]["was"]
+            now = "no score" if s is None else f"{s}/10"
+            before = "no score" if was is None else was
+            spec_lines.append(f"{dot(s)} {esc(name)}: {esc(value)} · {now} ✏️ (was {before})")
+        elif s is None:
             spec_lines.append(f"{dot(s)} {esc(name)}: <i>{esc(value)}</i>")
         else:
             spec_lines.append(f"{dot(s)} {esc(name)}: {esc(value)} · {s}/10")

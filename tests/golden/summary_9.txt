@@ -15,4 +15,5 @@ Score <b>5.7/10</b> · specs <b>6.0/10</b> · <b>ask first</b>
 📄 listings/009.md
 [💬 WhatsApp message] msg:9:48600111222
 [✉️ SMS] sms:9:48600111222
+[📝 Feedback] fx:9
 [📊 Open sheet] https://docs.google.com/spreadsheets/d/golden/edit

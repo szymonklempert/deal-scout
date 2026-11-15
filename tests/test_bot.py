@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from deal_scout import bot as botmod
+from deal_scout.fixmenu import FixReply
 from deal_scout.render import Message
 
 
@@ -275,6 +276,75 @@ class BotTests(unittest.TestCase):
         self.api.refuse_edit = True
         self.bot.edit(1, 55, Message("new"))
         self.assertEqual((self.api.edited, self.api.sent), ([], ["new"]))
+
+    def fix_bot(self, ask=True):
+        calls = []
+
+        def fixer(n, action, args):
+            calls.append((n, action, args))
+            if action == "reason":
+                return FixReply(extra=(Message("Noted."),))
+            return FixReply(Message("menu", buttons=(("A", f"fb:{n}"),), columns=3), edit=action != "open",
+                            ask_reason="Solar" if ask and action == "value" else None)
+        return botmod.Bot(self.api, self.root, 1, clock=self.clock, fixer=fixer), calls
+
+    def fix_tap(self, bot, data, user=1, message_id=77):
+        bot.handle_update({"update_id": 5, "callback_query": {
+            "id": "c", "from": {"id": user}, "data": data,
+            "message": {"message_id": message_id, "chat": {"id": 1}}}})
+
+    def test_stranger_fix_tap_is_ignored(self):
+        bot, calls = self.fix_bot()
+        self.fix_tap(bot, "fv:1:0:3", user=99)
+        self.assertEqual((calls, self.api.sent, self.api.edited), ([], [], []))
+
+    def test_fix_tap_routes_and_edits_the_tapped_message(self):
+        bot, calls = self.fix_bot()
+        self.fix_tap(bot, "fs:1:4")
+        self.fix_tap(bot, "fx:1")
+        self.assertEqual(calls, [(1, "spec", ["4"]), (1, "open", [])])
+        self.assertEqual(self.api.edited, [(77, "menu", [("A", "fb:1")], 3)])
+        self.assertEqual(self.api.sent, ["menu"])  # "open" sends a new message
+
+    def test_fix_error_is_reported(self):
+        bot, _ = self.fix_bot()
+
+        def broken(n, action, args):
+            raise ValueError("#1 has not been analysed yet")
+        bot.fixer = broken
+        self.fix_tap(bot, "fx:1")
+        self.assertEqual(self.api.sent, ["#1: #1 has not been analysed yet"])
+
+    def test_pending_reason_takes_the_next_plain_text(self):
+        bot, calls = self.fix_bot()
+        self.fix_tap(bot, "fv:1:0:3")
+        bot.handle_update(msg(text="panel is only 100 W"))
+        self.assertEqual(calls[-1], (1, "reason", ["Solar", "panel is only 100 W"]))
+        self.assertEqual(self.api.sent, ["Noted."])
+        self.assertFalse((self.root / "inbox").exists() and list((self.root / "inbox").iterdir()))
+        bot.handle_update(msg(text="second note"))  # the reason was taken: this is an ordinary note
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001"])
+
+    def test_url_photo_or_command_clears_the_pending_reason(self):
+        for update in (msg(text="see https://x.pl/a"), msg(photo="a"), msg(text="/list")):
+            bot, calls = self.fix_bot()
+            self.fix_tap(bot, "fv:1:0:3")
+            bot.handle_update(update)
+            bot.handle_update(msg(text="late reason"))
+            self.assertEqual([c[1] for c in calls], ["value"])
+        self.assertTrue((self.root / "inbox/001/links.txt").exists())
+
+    def test_other_taps_and_expiry_clear_the_pending_reason(self):
+        bot, calls = self.fix_bot()
+        self.fix_tap(bot, "fv:1:0:3")
+        self.fix_tap(bot, "fr:1")
+        bot.handle_update(msg(text="late"))
+        self.assertEqual([c[1] for c in calls], ["value", "skip"])
+        self.fix_tap(bot, "fv:1:0:3")
+        self.clock.t += 601
+        bot.handle_update(msg(text="too late"))
+        self.assertEqual([c[1] for c in calls], ["value", "skip", "value"])
 
     def test_usage_command(self):
         self.bot.handle_update(msg(text="/usage"))

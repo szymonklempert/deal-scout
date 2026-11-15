@@ -41,7 +41,8 @@ def main() -> None:
     bot = Bot(TelegramAPI(settings.telegram_token), ROOT, settings.allowed_user_id, settings.group_window_seconds,
               processor=processor if analyse else None, auto_analyse=(mode == "auto"),
               contact=functools.partial(contact.contact_for, ROOT), sheet_link=sheet.link(settings),
-              seller_text=functools.partial(contact.seller_text, ROOT))
+              seller_text=functools.partial(contact.seller_text, ROOT),
+              fixer=functools.partial(process.fix, ROOT, settings=settings, domain=d))
     try:
         provider = providers.name(settings)
         engine = f"{provider}, model {providers.model_for(provider, settings)}"

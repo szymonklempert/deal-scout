@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Protocol, TypedDict, cast
 
 from deal_scout import render, usage
+from deal_scout.fixmenu import FixReply
 from deal_scout.inbox import Inbox
 from deal_scout.render import Message
 
@@ -93,6 +94,20 @@ class BotState(TypedDict):
     current: CurrentListing | None
 
 
+FIX_PREFIXES = {"fx": "open", "fb": "back", "fs": "spec", "fv": "value", "fc": "checks", "fk": "check",
+                "fm": "mark", "fr": "skip", "fd": "done"}  # callback prefix -> process.fix action
+REASON_SECONDS = 600  # how long the next plain text message counts as the reason for a correction
+
+
+@dataclass
+class PendingReason:
+    """A correction waiting for its optional reason: the next plain text message from the owner."""
+
+    n: int
+    name: str
+    until: float
+
+
 @dataclass
 class PendingAck:
     """A "saved" confirmation waiting until the photos stop arriving."""
@@ -108,7 +123,8 @@ class Bot:
                  clock: Callable[[], float] = time.time,
                  processor: Callable[[int], list[Message]] | None = None, auto_analyse: bool = False,
                  contact: Callable[[int, str], list[Message]] | None = None, sheet_link: str | None = None,
-                 seller_text: Callable[[int, str, str | None], list[Message]] | None = None) -> None:
+                 seller_text: Callable[[int, str, str | None], list[Message]] | None = None,
+                 fixer: Callable[[int, str, list[str]], FixReply] | None = None) -> None:
         """Wire the bot to its Telegram API, data folder, allowed user and the optional analysis callbacks."""
         self.api = api
         self.root = root
@@ -118,6 +134,8 @@ class Bot:
         self.contact = contact  # callable(n, phone_text) -> seller messages with a WhatsApp button
         self.sheet_link = sheet_link
         self.seller_text = seller_text  # callable(n, "msg"|"sms", phone) -> messages for a button tap
+        self.fixer = fixer  # callable(n, action, args) -> what to show after a 📝 Feedback tap
+        self.pending_reason: PendingReason | None = None  # in memory only; a restart forgets it
         self.version = code_version()
         self.started = time.time()
         # listing numbers waiting for analysis, handled one at a time by worker()
@@ -172,6 +190,8 @@ class Bot:
         if user != self.allowed:
             return  # strangers get no answer at all
         text = (msg.get("text") or msg.get("caption") or "").strip()
+        if self.consume_reason(msg, text):
+            return
         if text.startswith("/"):
             words = text.split()
             self.handle_command(chat, words[0].split("@")[0].lower(), words[1:])
@@ -181,6 +201,25 @@ class Bot:
             self.reply(chat, "I can save photos, screenshots, links and text.")
             return
         self.save_message(msg, text, ids)
+
+    def consume_reason(self, msg: dict[str, Any], text: str) -> bool:
+        """Take a plain text message as the reason for the last correction; any message ends the wait.
+
+        Photos, documents, links and commands are not reasons: they are handled as usual.
+        """
+        pending, self.pending_reason = self.pending_reason, None
+        plain = bool(msg.get("text")) and not (msg.get("photo") or msg.get("document"))
+        if (pending is None or self.fixer is None or self.clock() > pending.until or not plain
+                or text.startswith("/") or URL_RE.search(text)):
+            return False
+        try:
+            reply = self.fixer(pending.n, "reason", [pending.name, text])
+        except Exception as exc:
+            self.reply(self.allowed, f"#{pending.n}: {exc}")
+            return True
+        log.info("#%d: reason noted", pending.n)
+        self.show(reply, None)
+        return True
 
     def save_message(self, msg: dict[str, Any], text: str, ids: Sequence[str]) -> None:
         """Save a message's photos, note and links into its listing and queue the "saved" confirmation."""
@@ -306,6 +345,9 @@ class Bot:
         except Exception as exc:
             log.warning("answerCallbackQuery failed: %s", exc)
         parts = str(cb.get("data") or "").split(":")
+        if parts[0] in FIX_PREFIXES and len(parts) > 1 and parts[1].isdigit():
+            self.handle_fix(cb, FIX_PREFIXES[parts[0]], int(parts[1]), parts[2:])
+            return
         if len(parts) < 2 or parts[0] not in ("msg", "sms") or not parts[1].isdigit() or self.seller_text is None:
             return
         n = int(parts[1])
@@ -316,6 +358,31 @@ class Bot:
             return
         log.info("#%d: sent the %s draft", n, parts[0])
         for item in items:
+            self.send(item)
+
+    def handle_fix(self, cb: dict[str, Any], action: str, n: int, args: list[str]) -> None:
+        """Answer a tap in the 📝 Feedback menu (the sender was already checked): show the next screen."""
+        if self.fixer is None:
+            return
+        try:
+            reply = self.fixer(n, action, args)
+        except Exception as exc:
+            self.pending_reason = None
+            self.reply(self.allowed, f"#{n}: {exc}")
+            return
+        self.pending_reason = (PendingReason(n, reply.ask_reason, self.clock() + REASON_SECONDS)
+                               if reply.ask_reason else None)
+        self.show(reply, cb.get("message"))
+
+    def show(self, reply: FixReply, tapped: dict[str, Any] | None) -> None:
+        """Show a fix reply: edit the tapped message (or send anew), then send the extra messages."""
+        if reply.message is not None:
+            chat, message_id = ((tapped or {}).get("chat") or {}).get("id"), (tapped or {}).get("message_id")
+            if reply.edit and chat is not None and message_id is not None:
+                self.edit(chat, message_id, reply.message)
+            else:
+                self.send(reply.message)
+        for item in reply.extra:
             self.send(item)
 
     def status(self) -> str:

@@ -6,6 +6,7 @@ one of these outputs is intended, regenerate them with
 and review the diff of tests/golden/ before committing.
 """
 import dataclasses
+import functools
 import json
 import os
 import re
@@ -52,6 +53,10 @@ def result(**over):
     return data
 
 
+class Edit(Message):
+    """A message edited in place, recorded as an "[edit]" block."""
+
+
 class Recorder:
     """A Telegram API that records every message the bot sends."""
 
@@ -60,6 +65,9 @@ class Recorder:
 
     def send_message(self, chat_id, text, buttons=None, html=False, columns=1):
         self.sent.append(Message(text=text, html=html, buttons=tuple((label, value) for label, value in buttons or [])))
+
+    def edit_message(self, chat_id, message_id, text, buttons=None, html=False, columns=1):
+        self.sent.append(Edit(text=text, html=html, buttons=tuple((label, value) for label, value in buttons or [])))
 
     def answer_callback(self, callback_id):
         pass
@@ -79,7 +87,7 @@ def message_text(items):
         if isinstance(m, str):
             out.append(m)
             continue
-        block = ("[html]\n" if m.html else "") + m.text
+        block = ("[edit]\n" if isinstance(m, Edit) else "") + ("[html]\n" if m.html else "") + m.text
         for label, value in m.buttons:
             block += f"\n[{label}] {value}"
         out.append(block)
@@ -217,6 +225,38 @@ class GoldenTests(unittest.TestCase):
         say("")
         bot.flush_ack(force=True)
         self.check("bot_transcript.txt", message_text(api.sent))
+
+    def test_feedback_transcript(self):
+        api = Recorder()
+        self.listing(1, links="https://example.com/item/1")
+        process.process_listing(self.root, 1, settings=self.settings, domain=self.domain, model="opus",
+                                runner=FakeRunner(result()))
+        fixer = functools.partial(process.fix, self.root, settings=self.settings, domain=self.domain)
+        bot = botmod.Bot(api, self.root, 1, clock=lambda: 1000.0, fixer=fixer)
+
+        def tap(data):
+            bot.handle_update({"update_id": 2, "callback_query": {
+                "id": "cb", "from": {"id": 1}, "data": data, "message": {"message_id": 9, "chat": {"id": 1}}}})
+
+        tap("fx:1")
+        tap("fs:1:0")
+        tap("fv:1:0:3")
+        bot.handle_update({"update_id": 3, "message": {"from": {"id": 1}, "chat": {"id": 1}, "date": 1000,
+                                                       "text": "The fair price is higher"}})
+        tap("fc:1")
+        tap("fk:1:1")
+        tap("fm:1:1:m")
+        tap("fd:1")
+        self.check("fix_transcript.txt", message_text(api.sent))
+
+    def test_corrections_are_logged_without_personal_data(self):
+        self.listing(1)
+        process.process_listing(self.root, 1, settings=self.settings, domain=self.domain, model="opus",
+                                runner=FakeRunner(result()))
+        process.fix(self.root, 1, "value", ["0", "3"], settings=self.settings, domain=self.domain)
+        text = (self.root / "listings" / "feedback.jsonl").read_text(encoding="utf-8")
+        self.assertNotIn("Alex", text)
+        self.assertNotIn("600", text)
 
 
 if __name__ == "__main__":

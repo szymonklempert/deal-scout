@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from deal_scout.domain import Domain
+from deal_scout.feedback import corrections_text
 from deal_scout.prompts import Listing
 from deal_scout.scoring import clean, ordered_specs, score, specs_avg
 
@@ -25,8 +26,8 @@ def csv_fields(d: Domain) -> list[str]:
     return (["number", "title", "seller", "source", "location", "link", "price_pln", "price_net", "model"]
             + list(d.categories)
             + ["year", "mileage_km", "fair_price_low", "fair_price_high", "score", "specs_avg", "met", "missed",
-               "unknown", "deal_breakers_hit", "missing", "red_flags", "verdict", "status", "first_seen",
-               "processed"]
+               "unknown", "deal_breakers_hit", "missing", "red_flags", "corrections", "verdict", "status",
+               "first_seen", "processed"]
             + d.specs)
 
 
@@ -62,6 +63,7 @@ def csv_row(n: int, data: Listing, d: Domain, old: Row | None = None, link: str 
                                        if c["deal_breaker"] and c["result"] == "missed"),
         "missing": "; ".join(data.get("missing") or []),
         "red_flags": "; ".join(data.get("red_flags") or []),
+        "corrections": corrections_text(data),
         "verdict": data.get("verdict", ""),
         "status": old.get("status") or "new",
         "first_seen": old.get("first_seen") or time.strftime("%Y-%m-%d"),
