@@ -85,25 +85,24 @@ def load(path: Path | str) -> list[dict[str, Any]]:
 
 
 def tokens(n: float) -> str:
-    return "%.1fM" % (n / 1e6) if n >= 1e6 else "%dk" % round(n / 1000) if n >= 1000 else str(n)
+    return f"{n / 1e6:.1f}M" if n >= 1e6 else f"{round(n / 1000)}k" if n >= 1000 else str(n)
 
 
 def line(label: str, recs: Sequence[dict[str, Any]]) -> str:
     if not recs:
-        return "%s: nothing" % label
+        return f"{label}: nothing"
     ok = [r for r in recs if r.get("ok")]
     tin = sum(r.get("input_tokens", 0) for r in recs)
     cached = sum(r.get("cached_tokens", 0) for r in recs)
     cost = sum(r.get("cost_usd", 0) for r in recs)
-    text = "%s: %d analys%s" % (label, len(recs), "is" if len(recs) == 1 else "es")
+    text = f"{label}: {len(recs)} analys{'is' if len(recs) == 1 else 'es'}"
     if len(ok) < len(recs):
-        text += " (%d failed)" % (len(recs) - len(ok))
-    text += " · %s tokens in (%d%% cached) · %s out · ~$%.2f" % (
-        tokens(tin), round(100 * cached / tin) if tin else 0, tokens(sum(r.get("output_tokens", 0) for r in recs)),
-        cost)
+        text += f" ({len(recs) - len(ok)} failed)"
+    text += (f" · {tokens(tin)} tokens in ({round(100 * cached / tin) if tin else 0}% cached) · "
+             f"{tokens(sum(r.get('output_tokens', 0) for r in recs))} out · ~${cost:.2f}")
     if ok:
-        text += " · per listing ~$%.2f, %d s" % (sum(r.get("cost_usd", 0) for r in ok) / len(ok),
-                                               round(sum(r.get("duration_s", 0) for r in ok) / len(ok)))
+        text += (f" · per listing ~${sum(r.get('cost_usd', 0) for r in ok) / len(ok):.2f}, "
+                 f"{round(sum(r.get('duration_s', 0) for r in ok) / len(ok))} s")
     return text
 
 

@@ -88,7 +88,7 @@ def message_text(items):
             continue
         block = ("[html]\n" if m.html else "") + m.text
         for label, value in m.buttons:
-            block += "\n[%s] %s" % (label, value)
+            block += f"\n[{label}] {value}"
         out.append(block)
     return "\n\n=====\n\n".join(out) + "\n"
 
@@ -111,7 +111,7 @@ class GoldenTests(unittest.TestCase):
         self.assertEqual(text, path.read_text(encoding="utf-8"), name)
 
     def listing(self, n, links=None, notes=None):
-        folder = self.root / "inbox" / ("%03d" % n)
+        folder = self.root / "inbox" / f"{n:03d}"
         folder.mkdir(parents=True)
         (folder / "photo_01.jpg").write_bytes(b"\xff\xd8golden")
         if links:
@@ -135,7 +135,7 @@ class GoldenTests(unittest.TestCase):
         kw = client.calls[0][1]
         content = kw["messages"][0]["content"]
         self.check("api_system.txt", kw["system"][0]["text"] + "\n")
-        self.check("api_user.txt", "\n".join("<image %s>" % b["source"]["media_type"] if b["type"] == "image"
+        self.check("api_user.txt", "\n".join(f"<image {b['source']['media_type']}>" if b["type"] == "image"
                                              else b["text"] for b in content) + "\n")
         self.check("schema_card.json", json.dumps(kw["output_config"]["format"]["schema"], indent=2,
                                                   ensure_ascii=False) + "\n")
@@ -153,8 +153,8 @@ class GoldenTests(unittest.TestCase):
     def test_full_run_files_and_messages(self):
         prices = [1450, 1100, 1350, 1500, 1800, 1300, 1400, 1250, 1600, 1380]
         for n, price in enumerate(prices, start=1):
-            self.listing(n, links="https://example.com/item/%d" % n)
-            over = {"price_pln": price, "model": "Acme Widget %d" % n, "year": 2020 + n % 4,
+            self.listing(n, links=f"https://example.com/item/{n}")
+            over = {"price_pln": price, "model": f"Acme Widget {n}", "year": 2020 + n % 4,
                     "grade": "used" if n % 2 else "new"}
             if n == 10:  # #1 reposted cheaper
                 over.update(model="Acme Widget 1", year=2021)
@@ -167,7 +167,7 @@ class GoldenTests(unittest.TestCase):
                             price_pln=None, specs=[])
             out = process.process_listing(self.root, n, settings=self.settings, domain=self.domain, model="opus",
                                           runner=FakeRunner(result(**over)))
-            self.check("summary_%d.txt" % n, message_text(out))
+            self.check(f"summary_{n}.txt", message_text(out))
         listings = self.root / "listings"
         self.check("listings.csv", mask(listings.joinpath("listings.csv").read_text(encoding="utf-8-sig")))
         self.check("INDEX.md", listings.joinpath("INDEX.md").read_text(encoding="utf-8"))

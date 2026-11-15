@@ -41,14 +41,13 @@ def run_claude(root: Path | str, nnn: str, model: str, d: Domain, settings: Sett
     except FileNotFoundError as exc:
         raise ProcessError("Claude Code (`claude`) is not installed or not on PATH; set CLAUDE_BIN in .env") from exc
     except subprocess.TimeoutExpired as exc:
-        raise ProcessError("Claude took longer than %d s" % timeout) from exc
+        raise ProcessError(f"Claude took longer than {timeout} s") from exc
     try:
         out = json.loads(proc.stdout)
     except ValueError as exc:
         log.error("#%s claude exit %s, no JSON. stderr: %s", nnn, proc.returncode, (proc.stderr or "")[-2000:])
         usage.record(root, int(nnn), {}, ok=False)
-        raise ProcessError("Claude failed (exit %s): %s"
-                           % (proc.returncode, (proc.stderr or proc.stdout)[-300:])) from exc
+        raise ProcessError(f"Claude failed (exit {proc.returncode}): {(proc.stderr or proc.stdout)[-300:]}") from exc
     # Only metadata goes to the log, never the listing content (names, phone numbers).
     log.info("#%s claude: %s, %.0f s, %s turns, est. $%.2f, %d permission denial(s) %s", nnn, out.get("subtype"),
              (out.get("duration_ms") or 0) / 1000, out.get("num_turns"), out.get("total_cost_usd") or 0,
@@ -61,7 +60,7 @@ def run_claude(root: Path | str, nnn: str, model: str, d: Domain, settings: Sett
         log.exception("#%s usage not recorded", nnn)
     if not ok:
         log.error("#%s claude error: %s", nnn, str(out.get("result") or out.get("subtype"))[:2000])
-        raise ProcessError("Claude failed: %s" % str(out.get("result") or out.get("subtype"))[:300])
+        raise ProcessError(f"Claude failed: {str(out.get('result') or out.get('subtype'))[:300]}")
     return cast(Listing, out["structured_output"])
 
 
@@ -82,7 +81,7 @@ def analyse(root: Path | str, nnn: str, d: Domain, settings: Settings,
                                      schema(d, card=True), settings, client=client)
     except Exception as exc:  # ProviderError or an SDK error (auth, rate limit, network)
         usage.record_api(root, int(nnn), False, provider, model, {})
-        raise ProcessError("%s: %s" % (provider, exc)) from exc
+        raise ProcessError(f"{provider}: {exc}") from exc
     if stats.get("cost_usd") is None:
         stats["cost_usd"] = providers.price(stats["input_tokens"], stats["output_tokens"], settings.price_per_mtok)
     usage.record_api(root, int(nnn), True, provider, model, stats)

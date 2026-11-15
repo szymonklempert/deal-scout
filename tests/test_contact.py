@@ -29,7 +29,7 @@ class ScrubTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "c.md"
             for written in ("+48 600-123-456", "600 123 456", "0048600123456", "(600) 123 456"):
-                path.write_text("call %s today, 196 000 km" % written)
+                path.write_text(f"call {written} today, 196 000 km")
                 contact.scrub_phone(path, "600123456")
                 self.assertEqual(path.read_text(), "call [phone removed] today, 196 000 km", written)
 

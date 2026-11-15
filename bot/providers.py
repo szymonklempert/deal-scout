@@ -38,7 +38,7 @@ def name(settings: Settings) -> str:
     """The configured provider, checked against the known ones."""
     p = settings.provider
     if p not in PROVIDERS:
-        raise ProviderError("PROVIDER=%s is not one of: %s" % (p, ", ".join(PROVIDERS)))
+        raise ProviderError(f"PROVIDER={p} is not one of: {', '.join(PROVIDERS)}")
     return p
 
 
@@ -51,7 +51,7 @@ def model_for(provider: str, settings: Settings) -> str:
     if provider == "anthropic":
         return m or "claude-opus-5-5"
     if not m:
-        raise ProviderError("set MODEL in .env to a %s model id (see the provider's model list)" % provider)
+        raise ProviderError(f"set MODEL in .env to a {provider} model id (see the provider's model list)")
     return m
 
 
@@ -108,7 +108,7 @@ def call_anthropic(model: str, system: str, user_text: str, images: Iterable[tup
             msg = stream.get_final_message()
     if msg.stop_reason == "refusal":
         details = getattr(msg, "stop_details", None)
-        raise ProviderError("the model declined (%s)" % (getattr(details, "category", None) or "refusal"))
+        raise ProviderError(f"the model declined ({getattr(details, 'category', None) or 'refusal'})")
     if msg.stop_reason == "max_tokens":
         raise ProviderError("the answer was cut off at max_tokens")
     text = next((b.text for b in msg.content if b.type == "text"), "")
@@ -131,7 +131,7 @@ def call_openai(model: str, system: str, user_text: str, images: Iterable[tuple[
             raise ProviderError("this provider needs the SDK: pip install openai") from exc
         client = openai.OpenAI(base_url=base_url, api_key=api_key) if base_url else openai.OpenAI()
     content: list[dict[str, Any]] = [
-        {"type": "image_url", "image_url": {"url": "data:%s;base64,%s" % (m, d)}} for m, d in images]
+        {"type": "image_url", "image_url": {"url": f"data:{m};base64,{d}"}} for m, d in images]
     content.append({"type": "text", "text": user_text})
     t0 = time.time()
     resp = client.chat.completions.create(
@@ -142,7 +142,7 @@ def call_openai(model: str, system: str, user_text: str, images: Iterable[tuple[
     )
     choice = resp.choices[0]
     if getattr(choice.message, "refusal", None):
-        raise ProviderError("the model declined: %s" % choice.message.refusal[:200])
+        raise ProviderError(f"the model declined: {choice.message.refusal[:200]}")
     if choice.finish_reason == "length":
         raise ProviderError("the answer was cut off (finish_reason=length)")
     u = resp.usage
@@ -178,4 +178,4 @@ def call(provider: str, model: str, system: str, user_text: str, images: Iterabl
             raise ProviderError("set OPENROUTER_API_KEY in .env")
         return call_openai(model, system, user_text, images, schema, base_url=OPENROUTER_URL, api_key=key,
                            client=client)
-    raise ProviderError("%s is not an API provider" % provider)
+    raise ProviderError(f"{provider} is not an API provider")

@@ -69,7 +69,7 @@ def push_all(csv_path: Path, fields: list[str], settings: Settings,
     rows = read_rows(csv_path)
     for n in sorted(rows):
         push(rows[n], fields, settings, opener=opener)
-        print("#%d copied" % n)
+        print(f"#{n} copied")
     return len(rows)
 
 
@@ -83,7 +83,7 @@ def main() -> None:
     except domain.DomainError as exc:
         sys.exit(str(exc))
     count = push_all(ROOT / "listings" / "listings.csv", csv_fields(d), settings)
-    print("Done: %d listing(s)." % count)
+    print(f"Done: {count} listing(s).")
 
 
 if __name__ == "__main__":

@@ -60,7 +60,7 @@ def csv_row(n: int, data: Listing, d: Domain, old: Row | None = None, link: str 
     for key in d.categories:
         row[key] = data.get(key) or ""
     for name, value, sc in ordered_specs(data, d.specs):
-        row[name] = value if sc is None else "%s (%d/10)" % (value, sc)
+        row[name] = value if sc is None else f"{value} ({sc}/10)"
     return row
 
 

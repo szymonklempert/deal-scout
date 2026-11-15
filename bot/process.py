@@ -38,9 +38,9 @@ def process_listing(root: Path | str, n: int, *, settings: Settings, domain: Dom
                     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
                     pusher: Callable[..., None] | None = None, client: Any = None) -> list[Message]:
     root = Path(root)
-    nnn = "%03d" % n
+    nnn = f"{n:03d}"
     if not (root / "inbox" / nnn).is_dir():
-        raise ProcessError("inbox/%s does not exist" % nnn)
+        raise ProcessError(f"inbox/{nnn} does not exist")
     listings = root / "listings"
     listings.mkdir(exist_ok=True)
     if model:  # an explicit model (tests, a one-off run) wins over .env
@@ -69,7 +69,7 @@ def process_listing(root: Path | str, n: int, *, settings: Settings, domain: Dom
             log.info("#%s copied to the Google Sheet", nnn)
         except Exception as exc:  # the CSV is saved either way; say so and carry on
             log.error("#%s Google Sheet not updated: %s", nnn, exc)
-            summary += "\n⚠️ Google Sheet not updated (%s). Retry: python3 bot/sheet.py" % esc(exc)
+            summary += f"\n⚠️ Google Sheet not updated ({esc(exc)}). Retry: python3 bot/sheet.py"
     buttons = summary_buttons(n, data, phone, sheet.link(settings))
     return [Message(text=summary[:4000], html=True, buttons=tuple(buttons))]
 
@@ -90,7 +90,7 @@ def main(argv: Sequence[str]) -> None:
         sys.exit(str(exc))
     try:
         out = process_listing(root, int(argv[1]), settings=settings, domain=d)
-        print("\n\n-----\n".join(plain_text(m.text) + "".join("\n[%s: %s]" % b for b in m.buttons)
+        print("\n\n-----\n".join(plain_text(m.text) + "".join(f"\n[{b[0]}: {b[1]}]" for b in m.buttons)
                                    for m in out))
     except ProcessError as exc:
         sys.exit(str(exc))

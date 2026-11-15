@@ -21,13 +21,13 @@ def normalise_phone(raw: object) -> str | None:
 
 
 def whatsapp_url(phone: str, text: str) -> str:
-    return "https://wa.me/%s?text=%s" % (phone, urllib.parse.quote(text, safe=""))
+    return f"https://wa.me/{phone}?text={urllib.parse.quote(text, safe='')}"
 
 
 def pretty_phone(phone: str) -> str:
     """'48600123456' -> '+48 600 123 456' (a form Telegram recognises as a phone number)."""
     if phone.startswith("48") and len(phone) == 11:
-        return "+48 %s %s %s" % (phone[2:5], phone[5:8], phone[8:])
+        return f"+48 {phone[2:5]} {phone[5:8]} {phone[8:]}"
     return "+" + phone
 
 
@@ -51,7 +51,7 @@ def contact_messages(data: Listing, phone: str | None) -> list[Message]:
     if full:
         if phone:
             out.append(Message(text=full[:3900], buttons=(("Send on WhatsApp", whatsapp_url(phone, full)),),
-                               fallback_url="https://wa.me/%s" % phone))
+                               fallback_url=f"https://wa.me/{phone}"))
         else:
             out.append(Message(text=full[:3900]))
     sms = (data.get("seller_sms") or "").strip()
@@ -60,32 +60,33 @@ def contact_messages(data: Listing, phone: str | None) -> list[Message]:
         # written out (Telegram makes it tappable: call / SMS).
         how = ("Tap the text to copy it, then tap the number and choose SMS." if phone
                else "Tap the text to copy it. No phone number on the screenshots.")
-        text = "<code>%s</code>\n\n%s%s" % (esc(sms[:3500]), "📱 %s\n" % pretty_phone(phone) if phone else "", how)
+        shown = f"📱 {pretty_phone(phone)}\n" if phone else ""
+        text = f"<code>{esc(sms[:3500])}</code>\n\n{shown}{how}"
         out.append(Message(text=text, html=True))
     return out
 
 
 def seller_text(root: Path | str, n: int, kind: str, phone: str | None = None) -> list[Message]:
     """What a message button sends: the full message (with the WhatsApp link when the number is known) or the SMS."""
-    path = Path(root) / "listings" / ("%03d.json" % n)
+    path = Path(root) / "listings" / f"{n:03d}.json"
     if not path.exists():
-        raise ProcessError("#%d has not been analysed yet" % n)
+        raise ProcessError(f"#{n} has not been analysed yet")
     items = contact_messages(json.loads(path.read_text(encoding="utf-8")), normalise_phone(phone))
     if kind == "sms":
         items = [i for i in items if i.html]
     else:
         items = items[:1]
     if not items:
-        raise ProcessError("#%d has no %s draft; re-analyse it with /done %d" % (n, kind.upper(), n))
+        raise ProcessError(f"#{n} has no {kind.upper()} draft; re-analyse it with /done {n}")
     return items
 
 
 def contact_for(root: Path | str, n: int, raw_phone: str) -> list[Message]:
     """/phone 7 600 123 456: the seller messages of an analysed listing, with a WhatsApp button for that number."""
-    path = Path(root) / "listings" / ("%03d.json" % n)
+    path = Path(root) / "listings" / f"{n:03d}.json"
     if not path.exists():
-        raise ProcessError("#%d has not been analysed yet; send /done %d first" % (n, n))
+        raise ProcessError(f"#{n} has not been analysed yet; send /done {n} first")
     phone = normalise_phone(raw_phone)
     if not phone:
-        raise ProcessError("%r doesn't look like a phone number" % raw_phone)
+        raise ProcessError(f"{raw_phone!r} doesn't look like a phone number")
     return contact_messages(json.loads(path.read_text(encoding="utf-8")), phone)

@@ -85,8 +85,8 @@ class TelegramAPI:
     """The few Telegram Bot API calls we need. Outgoing HTTPS only (long polling): no open ports."""
 
     def __init__(self, token: str) -> None:
-        self.base = "https://api.telegram.org/bot%s/" % token
-        self.file_base = "https://api.telegram.org/file/bot%s/" % token
+        self.base = f"https://api.telegram.org/bot{token}/"
+        self.file_base = f"https://api.telegram.org/file/bot{token}/"
 
     def call(self, method: str, params: dict[str, Any] | None = None, timeout: float = 60) -> Any:
         data = json.dumps(params or {}).encode("utf-8")
@@ -94,7 +94,7 @@ class TelegramAPI:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = json.loads(resp.read().decode("utf-8"))
         if not body.get("ok"):
-            raise RuntimeError("Telegram error in %s: %s" % (method, body.get("description")))
+            raise RuntimeError(f"Telegram error in {method}: {body.get('description')}")
         return body["result"]
 
     def get_updates(self, offset: int, wait: int = 30) -> list[dict[str, Any]]:
@@ -134,20 +134,21 @@ class Inbox:
         return (max(nums) + 1) if nums else 1
 
     def folder(self, n: int) -> Path:
-        path = self.dir / ("%03d" % n)
+        path = self.dir / f"{n:03d}"
         path.mkdir(parents=True, exist_ok=True)
         return path
 
     def add_photo(self, n: int, data: bytes, ext: str = ".jpg") -> Path:
         folder = self.folder(n)
         count = len(list(folder.glob("photo_*")))
-        path = folder / ("photo_%02d%s" % (count + 1, ext))
+        path = folder / f"photo_{count + 1:02d}{ext}"
         path.write_bytes(data)
         return path
 
     def add_note(self, n: int, text: str, when: float) -> None:
         with open(self.folder(n) / "notes.txt", "a", encoding="utf-8") as f:
-            f.write("[%s] %s\n" % (time.strftime("%Y-%m-%d %H:%M", time.localtime(when)), text))
+            stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(when))
+            f.write(f"[{stamp}] {text}\n")
 
     def add_links(self, n: int, links: Sequence[str]) -> list[str]:
         path = self.folder(n) / "links.txt"
@@ -159,7 +160,7 @@ class Inbox:
         return new
 
     def summary(self, n: int) -> tuple[int, list[str]]:
-        folder = self.dir / ("%03d" % n)
+        folder = self.dir / f"{n:03d}"
         photos = len(list(folder.glob("photo_*")))
         links = (folder / "links.txt").read_text(encoding="utf-8").split() if (folder / "links.txt").exists() else []
         return photos, links
@@ -253,8 +254,8 @@ class Bot:
         chat = msg["chat"]["id"]
         if self.allowed is None:
             # Setup mode: tell the person their id, save nothing.
-            self.reply(chat, "Setup: your Telegram user ID is %s. Put TELEGRAM_ALLOWED_USER_ID=%s in the .env file and "
-                             "restart the bot. Nothing was saved." % (user, user))
+            self.reply(chat, f"Setup: your Telegram user ID is {user}. Put TELEGRAM_ALLOWED_USER_ID={user} in the .env "
+                             "file and restart the bot. Nothing was saved.")
             return
         if user != self.allowed:
             return  # strangers get no answer at all
@@ -290,7 +291,7 @@ class Bot:
             n = self.ack.n
             self.ack = None
             photos, links = self.inbox.summary(n)
-            self.reply(self.allowed, "#%d: %d photo(s), %d link(s) saved." % (n, photos, len(links)))
+            self.reply(self.allowed, f"#{n}: {photos} photo(s), {len(links)} link(s) saved.")
 
     def handle_command(self, chat: int | None, cmd: str, args: Sequence[str] = ()) -> None:
         """Answer a slash command from the owner."""
@@ -345,7 +346,7 @@ class Bot:
         lines = []
         for n in nums:
             photos, links = self.inbox.summary(n)
-            lines.append("#%d  %d photo(s)  %s" % (n, photos, links[0] if links else "no link"))
+            lines.append(f"#{n}  {photos} photo(s)  {links[0] if links else 'no link'}")
         self.reply(chat, "\n".join(lines))
 
     def done(self, chat: int | None, args: Sequence[str]) -> None:
@@ -354,8 +355,8 @@ class Bot:
             return
         if args and args[0].lstrip("#").isdigit():
             n = int(args[0].lstrip("#"))
-            if not (self.inbox.dir / ("%03d" % n)).is_dir():
-                self.reply(chat, "There is no #%d." % n)
+            if not (self.inbox.dir / f"{n:03d}").is_dir():
+                self.reply(chat, f"There is no #{n}.")
                 return
         elif cur := self.state.get("current"):
             n = cur["n"]
@@ -376,7 +377,7 @@ class Bot:
         try:
             items = self.contact(n, " ".join(args[1:]))
         except Exception as exc:
-            self.reply(chat, "#%d: %s" % (n, exc))
+            self.reply(chat, f"#{n}: {exc}")
             return
         for item in items:
             self.send(item)
@@ -396,7 +397,7 @@ class Bot:
         try:
             items = self.seller_text(n, parts[0], parts[2] if len(parts) > 2 else None)
         except Exception as exc:
-            self.reply(self.allowed, "#%d: %s" % (n, exc))
+            self.reply(self.allowed, f"#{n}: {exc}")
             return
         log.info("#%d: sent the %s draft", n, parts[0])
         for item in items:
@@ -404,14 +405,15 @@ class Bot:
 
     def status(self) -> str:
         now = code_version()
-        lines = ["Running since %s, code %s." % (time.strftime("%Y-%m-%d %H:%M", time.localtime(self.started)),
-                                                 self.version)]
+        started = time.strftime("%Y-%m-%d %H:%M", time.localtime(self.started))
+        lines = [f"Running since {started}, code {self.version}."]
         if now != self.version:
-            lines.append("⚠️ The code changed since the bot started (%s): restart it to use the new version." % now)
-        lines.append("Analysis: %s." % ("auto" if self.auto_analyse else "manual (/done)" if self.processor else "off"))
+            lines.append(f"⚠️ The code changed since the bot started ({now}): restart it to use the new version.")
+        analysis = "auto" if self.auto_analyse else "manual (/done)" if self.processor else "off"
+        lines.append(f"Analysis: {analysis}.")
         cur = self.state.get("current")
-        lines.append("Open listing: #%d." % cur["n"] if cur else "No open listing.")
-        lines.append("Waiting for analysis: %d." % self.jobs.qsize())
+        lines.append(f"Open listing: #{cur['n']}." if cur else "No open listing.")
+        lines.append(f"Waiting for analysis: {self.jobs.qsize()}.")
         return "\n".join(lines)
 
     def send(self, item: str | Message) -> None:
@@ -435,14 +437,14 @@ class Bot:
             plain = render.plain_text(plain)
         self.api.send_message(self.allowed, plain)
         if item.fallback_url:
-            self.api.send_message(self.allowed, "Open %s and paste the message above." % item.fallback_url)
+            self.api.send_message(self.allowed, f"Open {item.fallback_url} and paste the message above.")
         elif any(v.startswith("https://") for _, v in item.buttons):
-            self.api.send_message(self.allowed, "\n".join("%s: %s" % b for b in item.buttons
+            self.api.send_message(self.allowed, "\n".join(f"{b[0]}: {b[1]}" for b in item.buttons
                                                            if b[1].startswith("https://")))
 
     def queue_analysis(self, n: int) -> None:
         self.jobs.put(n)
-        self.reply(self.allowed, "#%d: analysing, usually about a minute..." % n)
+        self.reply(self.allowed, f"#{n}: analysing, usually about a minute...")
 
     def tick(self) -> None:
         """Called after every poll: confirm what was saved once photos stop arriving; with auto analysis on,
@@ -466,7 +468,7 @@ class Bot:
             log.info("#%d: analysis done in %.0f s", n, time.time() - t0)
         except Exception as exc:  # report it in the chat; the screenshots stay in the inbox
             log.exception("#%d: analysis failed after %.0f s", n, time.time() - t0)
-            result = "#%d: analysis failed: %s\nTry again with /done %d" % (n, exc, n)
+            result = f"#{n}: analysis failed: {exc}\nTry again with /done {n}"
         for item in [result] if isinstance(result, str) else result:
             self.send(item)
 
@@ -521,9 +523,9 @@ def main() -> None:
               seller_text=functools.partial(contact.seller_text, ROOT))
     try:
         provider = providers.name(settings)
-        engine = "%s, model %s" % (provider, providers.model_for(provider, settings))
+        engine = f"{provider}, model {providers.model_for(provider, settings)}"
     except providers.ProviderError as exc:
-        engine = "misconfigured: %s" % exc
+        engine = f"misconfigured: {exc}"
     log.info("Domain: %s. Analysis: %s (%s). Google Sheet %s", d.name, mode if analyse else "off",
              engine, "on" if settings.sheet_url else "off")
     bot.run()

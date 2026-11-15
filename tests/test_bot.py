@@ -145,7 +145,7 @@ class BotTests(unittest.TestCase):
             if fail:
                 raise RuntimeError("claude not found")
             done.append(n)
-            return ["#%d analysed" % n, "Dzień dobry"] if n == 2 else "#%d analysed" % n
+            return [f"#{n} analysed", "Dzień dobry"] if n == 2 else f"#{n} analysed"
         bot = botmod.Bot(self.api, self.root, 1, window_seconds=180, clock=self.clock, processor=processor,
                          auto_analyse=auto)
         return bot, done
@@ -224,7 +224,7 @@ class BotTests(unittest.TestCase):
 
         def seller_text(n, kind, phone):
             calls.append((n, kind, phone))
-            return [Message("%s for #%d" % (kind, n))]
+            return [Message(f"{kind} for #{n}")]
         bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, seller_text=seller_text)
         return bot, calls
 

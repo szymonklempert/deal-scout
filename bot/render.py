@@ -33,15 +33,15 @@ def dot(score: float | None) -> str:
 
 
 def fmt_int(v: Any) -> str:
-    return "{:,}".format(int(v)).replace(",", " ")
+    return f"{int(v):,}".replace(",", " ")
 
 
 def contact_line(n: int, data: Listing, phone: str | None) -> str:
     pref = data.get("contact_preference") or "not stated"
-    how = "listing asks for %s" % pref if pref != "not stated" else "no contact preference"
+    how = f"listing asks for {pref}" if pref != "not stated" else "no contact preference"
     if phone:
-        return "💬 %s · tap below for the message to the seller" % how
-    return "💬 %s · tap below for the message; no phone on the screenshots (/phone %d 600123456 adds one)" % (how, n)
+        return f"💬 {how} · tap below for the message to the seller"
+    return f"💬 {how} · tap below for the message; no phone on the screenshots (/phone {n} 600123456 adds one)"
 
 
 def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | None) -> list[Button]:
@@ -49,9 +49,9 @@ def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | 
     rides along inside the button, so it is never written to a file."""
     buttons: list[Button] = []
     if (data.get("seller_message") or "").strip():
-        buttons.append(("💬 WhatsApp message", "msg:%d:%s" % (n, phone or "")))
+        buttons.append(("💬 WhatsApp message", f"msg:{n}:{phone or ''}"))
     if (data.get("seller_sms") or "").strip():
-        buttons.append(("✉️ SMS", "sms:%d:%s" % (n, phone or "")))
+        buttons.append(("✉️ SMS", f"sms:{n}:{phone or ''}"))
     if sheet_link:
         buttons.append(("📊 Open sheet", sheet_link))
     return buttons
@@ -60,25 +60,25 @@ def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | 
 def summary_text(n: int, data: Listing, row: Row, specs: list[str], others: Sequence[int] = (),
                  phone: str | None = None) -> str:
     """Telegram HTML: header, the fixed spec list (one line each, with a score), then flags and contact."""
-    price = "<b>%s PLN</b>" % fmt_int(data["price_pln"]) if data.get("price_pln") is not None else "price not shown"
+    price = f"<b>{fmt_int(data['price_pln'])} PLN</b>" if data.get("price_pln") is not None else "price not shown"
     where = [price] + [esc(data[k]) for k in ("location", "source") if data.get(k)]
-    head = ["<b>#%d %s</b>" % (n, esc(data.get("title") or "listing")), " · ".join(where)]
+    head = [f"<b>#{n} {esc(data.get('title') or 'listing')}</b>", " · ".join(where)]
     if data.get("seller_name"):
-        head.append("Seller: %s%s" % (esc(data["seller_name"]),
-                                      " (also #%s)" % ", #".join(map(str, others)) if others else ""))
-    sc = "<b>%s/10</b>" % row["score"] if row["score"] != "" else "– (fill in criteria.md)"
+        also = f" (also #{', #'.join(map(str, others))})" if others else ""
+        head.append(f"Seller: {esc(data['seller_name'])}{also}")
+    sc = f"<b>{row['score']}/10</b>" if row["score"] != "" else "– (fill in criteria.md)"
     avg = row["specs_avg"]
-    head.append("Score %s · specs <b>%s</b> · <b>%s</b>" % (sc, "%s/10" % avg if avg != "" else "–",
-                                                          esc(data.get("verdict", "?"))))
+    specs_text = f"{avg}/10" if avg != "" else "–"
+    head.append(f"Score {sc} · specs <b>{specs_text}</b> · <b>{esc(data.get('verdict', '?'))}</b>")
     if data.get("summary"):
-        head.append("<i>%s</i>" % esc(data["summary"]))
+        head.append(f"<i>{esc(data['summary'])}</i>")
 
     spec_lines = []
     for name, value, s in ordered_specs(data, specs):
         if s is None:
-            spec_lines.append("%s %s: <i>%s</i>" % (dot(s), esc(name), esc(value)))
+            spec_lines.append(f"{dot(s)} {esc(name)}: <i>{esc(value)}</i>")
         else:
-            spec_lines.append("%s %s: %s · %d/10" % (dot(s), esc(name), esc(value), s))
+            spec_lines.append(f"{dot(s)} {esc(name)}: {esc(value)} · {s}/10")
 
     tail = []
     if row["deal_breakers_hit"]:
@@ -87,7 +87,7 @@ def summary_text(n: int, data: Listing, row: Row, specs: list[str], others: Sequ
         tail.append("🚩 " + esc(" · ".join(data["red_flags"][:3])))
     if data.get("seller_message"):
         tail.append(contact_line(n, data, phone))
-    tail.append("📄 listings/%03d.md" % n)
+    tail.append(f"📄 listings/{n:03d}.md")
     return "\n".join(head) + "\n\n" + "\n".join(spec_lines) + "\n\n" + "\n".join(tail)
 
 

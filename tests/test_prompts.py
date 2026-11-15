@@ -24,10 +24,10 @@ class SchemaTests(unittest.TestCase):
                 for bad in ("minimum", "maximum", "multipleOf"):
                     self.assertNotIn(bad, node, path)
                 for k, v in node.items():
-                    walk(v, "%s.%s" % (path, k))
+                    walk(v, f"{path}.{k}")
             elif isinstance(node, list):
                 for i, v in enumerate(node):
-                    walk(v, "%s[%d]" % (path, i))
+                    walk(v, f"{path}[{i}]")
         walk(prompts.schema(CAMPERVAN, card=True))
 
 

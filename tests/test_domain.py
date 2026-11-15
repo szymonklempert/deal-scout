@@ -72,7 +72,7 @@ class DomainTests(unittest.TestCase):
         self.assertTrue((self.root / "listings/market.md").exists())
 
     def test_market_groups_by_domain_keys(self):
-        rows = [{"number": str(i), "price_pln": str(2500 + 100 * i), "model": "LG C%d" % i, "panel": "OLED",
+        rows = [{"number": str(i), "price_pln": str(2500 + 100 * i), "model": f"LG C{i}", "panel": "OLED",
                  "year": "2022", "mileage_km": ""} for i in range(1, 5)]
         self.assertIn("## OLED", market.build(rows, TV["market"]))
 

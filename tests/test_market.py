@@ -20,7 +20,7 @@ def row(n, price, year=2011, km=180000, seller="", build="DIY", reg="M1", family
             "mileage_km": str(km), "seller": seller, "model_family": family, "build": build, "registration": reg,
             "body": "van conversion", "price_net": net, "fair_price_low": str(fair[0]) if fair else "",
             "fair_price_high": str(fair[1]) if fair else "",
-            "Price vs market": "x (%d/10)" % price_score if price_score is not None else "not shown"}
+            "Price vs market": f"x ({price_score}/10)" if price_score is not None else "not shown"}
 
 
 class BandTests(unittest.TestCase):

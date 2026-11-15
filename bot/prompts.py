@@ -145,14 +145,14 @@ Put the seller's name only in the card's seller line and in seller_name. Never w
 
 def prompt(nnn: str, d: Domain, api: bool = False) -> str:
     """The instructions. Claude Code reads the files itself; for API providers the files are appended (api_files)."""
-    cats = "".join("- %s: one of the allowed values%s; \"unknown\" when the listing doesn't let you tell.\n"
-                   % (key, ": " + cat["help"] if cat.get("help") else "") for key, cat in d.categories.items())
+    cats = "".join(f"- {key}: one of the allowed values{': ' + cat['help'] if cat.get('help') else ''}; "
+                   "\"unknown\" when the listing doesn't let you tell.\n" for key, cat in d.categories.items())
     return ((INTRO_API if api else INTRO_CLAUDE_CODE) + RULES).format(
         item=d.item, unit=d.unit, nnn=nnn, ddir=d.rel, language=d.seller_language,
         criteria="criteria.md, " if d.has_criteria() else "",
-        refs="".join(", %s (%s)" % (f, what) for f, what in d.reference_files.items()),
+        refs="".join(f", {f} ({what})" for f, what in d.reference_files.items()),
         instructions=d.instructions or "(none)", specs=", ".join(d.specs), categories=cats,
-        title_example=', e.g. "%s"' % d.title_example if d.title_example else "")
+        title_example=f', e.g. "{d.title_example}"' if d.title_example else "")
 
 
 def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[Path]]:
@@ -164,15 +164,15 @@ def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[P
     for name in files:
         path = d.dir / name
         if path.exists():
-            parts.append("\n===== %s =====\n%s" % (name, path.read_text(encoding="utf-8").strip()))
+            parts.append(f"\n===== {name} =====\n{path.read_text(encoding='utf-8').strip()}")
     folder = Path(root) / "inbox" / nnn
-    user = ["Listing #%s." % nnn]
+    user = [f"Listing #{nnn}."]
     for name, label in (("notes.txt", "The owner's notes"), ("links.txt", "Links")):
         if (folder / name).exists():
-            user.append("%s:\n%s" % (label, (folder / name).read_text(encoding="utf-8").strip()))
+            user.append(f"{label}:\n{(folder / name).read_text(encoding='utf-8').strip()}")
     market_md = Path(root) / "listings" / "market.md"
     if market_md.exists():
         user.append("Market prices from the owner's own listings:\n" + market_md.read_text(encoding="utf-8").strip())
     photos = sorted(x for x in folder.glob("photo_*") if x.is_file())
-    user.append("%d photo(s) of the listing are attached, in order." % len(photos))
+    user.append(f"{len(photos)} photo(s) of the listing are attached, in order.")
     return "\n".join(parts), "\n\n".join(user), photos
