@@ -8,12 +8,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import config  # noqa: E402
-from test_process import FakeRunner  # noqa: E402
+from fakes import FakeRunner  # noqa: E402
 
+import config  # noqa: E402
 import domain  # noqa: E402
 import market  # noqa: E402
 import process  # noqa: E402
+import prompts  # noqa: E402
+import storage  # noqa: E402
 
 TV = {"item": "used TV", "unit": "TV", "seller_language": "English", "title_example": "LG OLED C2 55\"",
       "reference_files": {"panels.md": "panel types and burn-in risk"},
@@ -47,14 +49,14 @@ class DomainTests(unittest.TestCase):
         self.assertFalse(self.tv.has_criteria())
 
     def test_prompt_and_schema_follow_the_domain(self):
-        text = process.prompt("001", self.tv)
+        text = prompts.prompt("001", self.tv)
         self.assertIn("a listing for a used TV", text)
         self.assertIn("domains/tv/: checklist.md, card-template.md, panels.md (panel types and burn-in risk)", text)
         self.assertIn("grey test screen", text)
         self.assertIn("which TV it is about", text)
         self.assertNotIn("campervan", text.lower())
         self.assertNotIn("knowledge.md", text)
-        schema = process.schema(self.tv)
+        schema = prompts.schema(self.tv)
         self.assertEqual(schema["properties"]["specs"]["items"]["properties"]["name"]["enum"], TV["specs"])
         self.assertEqual(schema["properties"]["panel"]["enum"], ["OLED", "QLED", "LCD", "unknown"])
         self.assertNotIn("model_family", schema["properties"])
@@ -64,7 +66,7 @@ class DomainTests(unittest.TestCase):
                                       runner=FakeRunner(RESULT))
         self.assertIn("⚪ Burn-in: <i>not shown</i>", out[0]["text"])
         self.assertIn("🟢 Panel: OLED · 9/10", out[0]["text"])
-        row = process.read_rows(self.root / "listings/listings.csv")[1]
+        row = storage.read_rows(self.root / "listings/listings.csv")[1]
         self.assertEqual((row["panel"], row["Panel"], row["Size"]), ("OLED", "OLED (9/10)", "not shown"))
         self.assertNotIn("model_family", row)
         self.assertTrue((self.root / "listings/market.md").exists())

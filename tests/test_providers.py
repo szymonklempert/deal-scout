@@ -4,59 +4,16 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import contextmanager
 from pathlib import Path
-from types import SimpleNamespace as Ns
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import config  # noqa: E402
-from test_process import CAMPERVAN, RESULT  # noqa: E402
+from fakes import CAMPERVAN, SETTINGS, FakeAnthropic, FakeOpenAI  # noqa: E402
 
+import errors  # noqa: E402
 import process  # noqa: E402
 import providers  # noqa: E402
 import usage  # noqa: E402
-
-SETTINGS = config.Settings()
-CARD = "# #001 Fiat Ducato\n- Seller: Jan Kowalski, tel. +48 600-123-456\n"
-
-
-def answer(**extra):
-    return json.dumps(dict(RESULT, card_markdown=CARD, **extra))
-
-
-class FakeAnthropic:
-    def __init__(self, text=None, stop_reason="end_turn"):
-        self.calls = []
-        msg = Ns(stop_reason=stop_reason, model="claude-opus-5-5", stop_details=Ns(category="cyber"),
-                 content=[Ns(type="thinking", thinking=""), Ns(type="text", text=text or answer())],
-                 usage=Ns(input_tokens=1200, cache_read_input_tokens=8000, cache_creation_input_tokens=0,
-                          output_tokens=5000))
-
-        def stream(kind):
-            @contextmanager
-            def run(**kw):
-                self.calls.append((kind, kw))
-                yield Ns(get_final_message=lambda: msg)
-            return run
-
-        self.messages = Ns(stream=stream("plain"))
-        self.beta = Ns(messages=Ns(stream=stream("beta")))
-
-
-class FakeOpenAI:
-    def __init__(self, content=None, refusal=None, finish_reason="stop", cost=None):
-        self.calls = []
-        usage_ = Ns(prompt_tokens=9000, completion_tokens=4000, prompt_tokens_details=Ns(cached_tokens=6000))
-        if cost is not None:
-            usage_.cost = cost
-        resp = Ns(model="some-model", usage=usage_, choices=[Ns(
-            finish_reason=finish_reason, message=Ns(content=content or answer(), refusal=refusal))])
-
-        def create(**kw):
-            self.calls.append(kw)
-            return resp
-        self.chat = Ns(completions=Ns(create=create))
 
 
 class ProviderTests(unittest.TestCase):
@@ -115,16 +72,16 @@ class ProviderTests(unittest.TestCase):
         self.assertNotIn("effort", kw["output_config"])
 
     def test_anthropic_refusal_is_reported_and_recorded(self):
-        with self.assertRaisesRegex(process.ProcessError, "anthropic: the model declined \\(cyber\\)"):
+        with self.assertRaisesRegex(errors.ProcessError, "anthropic: the model declined \\(cyber\\)"):
             self.run_listing("anthropic", FakeAnthropic(stop_reason="refusal"))
         self.assertFalse(usage.load(self.root / "logs/usage.jsonl")[-1]["ok"])
-        with self.assertRaisesRegex(process.ProcessError, "cut off"):
+        with self.assertRaisesRegex(errors.ProcessError, "cut off"):
             self.run_listing("anthropic", FakeAnthropic(stop_reason="max_tokens"))
-        with self.assertRaisesRegex(process.ProcessError, "valid JSON"):
+        with self.assertRaisesRegex(errors.ProcessError, "valid JSON"):
             self.run_listing("anthropic", FakeAnthropic(text="Sorry, here is the card..."))
 
     def test_openai_needs_a_model(self):
-        with self.assertRaisesRegex(process.ProcessError, "set MODEL"):
+        with self.assertRaisesRegex(errors.ProcessError, "set MODEL"):
             self.run_listing("openai", FakeOpenAI())
 
     def test_openai_end_to_end(self):
@@ -142,9 +99,9 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual((rec["provider"], rec["cached_tokens"], rec["cost_usd"]), ("openai", 6000, 0.05))
 
     def test_openai_refusal_and_cut_off(self):
-        with self.assertRaisesRegex(process.ProcessError, "declined: no"):
+        with self.assertRaisesRegex(errors.ProcessError, "declined: no"):
             self.run_listing("openai", FakeOpenAI(refusal="no"), model="gpt-x")
-        with self.assertRaisesRegex(process.ProcessError, "cut off"):
+        with self.assertRaisesRegex(errors.ProcessError, "cut off"):
             self.run_listing("openai", FakeOpenAI(finish_reason="length"), model="gpt-x")
 
     def test_openrouter_needs_a_key_and_reports_cost(self):
@@ -164,43 +121,6 @@ class ProviderTests(unittest.TestCase):
                 sys.modules.pop("anthropic", None)
             else:
                 sys.modules["anthropic"] = real
-
-
-class SchemaTests(unittest.TestCase):
-    def test_strict_mode_rules_hold_everywhere(self):
-        """OpenAI strict mode and Anthropic structured outputs: every object closed with all keys required, enums
-        typed, no numeric limits."""
-        def walk(node, path="$"):
-            if isinstance(node, dict):
-                if node.get("type") == "object":
-                    self.assertIs(node.get("additionalProperties"), False, path)
-                    self.assertEqual(sorted(node["required"]), sorted(node["properties"]), path)
-                if "enum" in node:
-                    self.assertEqual(node.get("type"), "string", path)
-                for bad in ("minimum", "maximum", "multipleOf"):
-                    self.assertNotIn(bad, node, path)
-                for k, v in node.items():
-                    walk(v, "%s.%s" % (path, k))
-            elif isinstance(node, list):
-                for i, v in enumerate(node):
-                    walk(v, "%s[%d]" % (path, i))
-        walk(process.schema(CAMPERVAN, card=True))
-
-    def test_scores_are_clamped(self):
-        data = {"specs": [{"name": "Year", "value": "2014", "score": 14}, {"name": "Mileage", "value": "x",
-                                                                          "score": -2}]}
-        got = {n: s for n, _, s in process.ordered_specs(data, CAMPERVAN.specs)}
-        self.assertEqual((got["Year"], got["Mileage"]), (10, 0))
-
-
-class ScrubTests(unittest.TestCase):
-    def test_formats(self):
-        with tempfile.TemporaryDirectory() as d:
-            path = Path(d) / "c.md"
-            for written in ("+48 600-123-456", "600 123 456", "0048600123456", "(600) 123 456"):
-                path.write_text("call %s today, 196 000 km" % written)
-                process.scrub_phone(path, "600123456")
-                self.assertEqual(path.read_text(), "call [phone removed] today, 196 000 km", written)
 
 
 if __name__ == "__main__":

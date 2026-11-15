@@ -1,0 +1,85 @@
+"""Run the analysis with Claude Code or an API provider and return the facts as a dict."""
+import json
+import logging
+import subprocess
+from pathlib import Path
+
+import providers
+import usage
+from config import Settings
+from domain import Domain
+from errors import ProcessError
+from prompts import api_request, prompt, schema
+
+log = logging.getLogger("dealscout")
+
+
+
+def claude_command(nnn: str, model: str, d: Domain, claude_bin: str = "claude") -> list[str]:
+    """The headless Claude Code call: read anything in the project, write only into listings/, no shell, no web."""
+    return [
+        claude_bin, "-p", prompt(nnn, d),
+        "--model", model,
+        "--tools", "Read,Write,Edit,Glob",
+        "--allowedTools", "Read", "Glob", "Write(./listings/**)", "Edit(./listings/**)",
+        "--permission-mode", "dontAsk",
+        "--restricted", "--strict-mcp-config", "--no-session-persistence",
+        "--output-format", "json",
+        "--json-schema", json.dumps(schema(d)),
+    ]
+
+
+def run_claude(root, nnn, model, d: Domain, settings: Settings, runner=subprocess.run, timeout=900):
+    try:
+        env = dict(settings.claude_env)  # without the bot token and Anthropic keys, see config.child_env
+        command = claude_command(nnn, model, d, claude_bin=settings.claude_bin)
+        proc = runner(command, cwd=str(root), env=env, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError as exc:
+        raise ProcessError("Claude Code (`claude`) is not installed or not on PATH; set CLAUDE_BIN in .env") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise ProcessError("Claude took longer than %d s" % timeout) from exc
+    try:
+        out = json.loads(proc.stdout)
+    except ValueError as exc:
+        log.error("#%s claude exit %s, no JSON. stderr: %s", nnn, proc.returncode, (proc.stderr or "")[-2000:])
+        usage.record(root, int(nnn), {}, ok=False)
+        raise ProcessError("Claude failed (exit %s): %s"
+                           % (proc.returncode, (proc.stderr or proc.stdout)[-300:])) from exc
+    # Only metadata goes to the log, never the listing content (names, phone numbers).
+    log.info("#%s claude: %s, %.0f s, %s turns, est. $%.2f, %d permission denial(s) %s", nnn, out.get("subtype"),
+             (out.get("duration_ms") or 0) / 1000, out.get("num_turns"), out.get("total_cost_usd") or 0,
+             len(out.get("permission_denials") or []),
+             [d.get("tool_name") for d in out.get("permission_denials") or []])
+    ok = not out.get("is_error") and isinstance(out.get("structured_output"), dict)
+    try:
+        usage.record(root, int(nnn), out, ok)
+    except OSError:
+        log.exception("#%s usage not recorded", nnn)
+    if not ok:
+        log.error("#%s claude error: %s", nnn, str(out.get("result") or out.get("subtype"))[:2000])
+        raise ProcessError("Claude failed: %s" % str(out.get("result") or out.get("subtype"))[:300])
+    return out["structured_output"]
+
+
+def analyse(root, nnn, d: Domain, settings: Settings, runner=subprocess.run, client=None):
+    """Run the analysis with PROVIDER from .env. API providers return the card's text, written here."""
+    try:
+        provider = providers.name(settings)
+        model = providers.model_for(provider, settings)
+    except providers.ProviderError as exc:
+        raise ProcessError(str(exc)) from exc
+    if provider == "claude-code":
+        return run_claude(root, nnn, model, d, settings, runner=runner)
+    system, user_text, photos = api_request(root, nnn, d)
+    try:
+        data, stats = providers.call(provider, model, system, user_text, providers.image_blocks(photos),
+                                     schema(d, card=True), settings, client=client)
+    except Exception as exc:  # ProviderError or an SDK error (auth, rate limit, network)
+        usage.record_api(root, int(nnn), False, provider, model, {})
+        raise ProcessError("%s: %s" % (provider, exc)) from exc
+    if stats.get("cost_usd") is None:
+        stats["cost_usd"] = providers.price(stats["input_tokens"], stats["output_tokens"], settings.price_per_mtok)
+    usage.record_api(root, int(nnn), True, provider, model, stats)
+    card = (data.pop("card_markdown", "") or "").strip()
+    (Path(root) / "listings" / (nnn + ".md")).write_text(card + "\n", encoding="utf-8")
+    return data

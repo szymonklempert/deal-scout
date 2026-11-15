@@ -8,7 +8,7 @@
 
 The API providers make a single request: the instructions and the domain's files go in the system prompt (the same
 for every listing, so providers can cache it), the listing's notes, links and photos go in the user message, and the
-structured result comes back as JSON, including the card's text (card_markdown), which process.py writes to disk.
+structured result comes back as JSON, including the card's text (card_markdown), which analysis.py writes to disk.
 The SDKs are imported only when their provider is chosen, so the bot itself stays standard-library only.
 """
 import base64

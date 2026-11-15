@@ -15,7 +15,7 @@ import json
 from collections.abc import Iterable
 from pathlib import Path
 
-CODE_ROOT = Path(__file__).resolve().parent.parent
+from config import ROOT
 
 
 class DomainError(Exception):
@@ -52,7 +52,7 @@ class Domain:
 
 def load(name: str, roots: Iterable[Path | str] | None = None) -> Domain:
     """Load the domain called `name` from each root's domains/ folder in turn (data folder first, then the code's)."""
-    for root in list(roots or []) + [CODE_ROOT]:
+    for root in list(roots or []) + [ROOT]:
         if (Path(root) / "domains" / name / "domain.json").exists():
             return Domain(Path(root) / "domains" / name)
     raise DomainError(f"domain {name!r} not found in domains/")

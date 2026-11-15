@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent.parent  # the project root, defined once here
 DEFAULT_DOMAIN = "campervan"
 SECRET_PREFIXES = ("TELEGRAM_",)
 SECRET_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")

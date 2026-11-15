@@ -13,6 +13,8 @@ import sys
 import time
 from pathlib import Path
 
+import config
+
 DAY = 86400
 
 
@@ -101,7 +103,7 @@ def summary(path, now=None):
 
 
 def main():
-    print(summary(Path(__file__).resolve().parent.parent / "logs" / "usage.jsonl"))
+    print(summary(config.ROOT / "logs" / "usage.jsonl"))
 
 
 if __name__ == "__main__":

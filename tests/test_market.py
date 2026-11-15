@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
 import domain  # noqa: E402
 import market  # noqa: E402
-import process  # noqa: E402
+import storage  # noqa: E402
 
 CAMPERVAN = domain.load("campervan")
 CFG = CAMPERVAN.market
@@ -84,7 +84,7 @@ class WriteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             listings = Path(d)
             rows = {i: dict(row(i, 80000 + i * 1000, km=100000 + i * 5000), title="t") for i in range(1, 5)}
-            process.write_rows(listings / "listings.csv", rows, process.csv_fields(CAMPERVAN))
+            storage.write_rows(listings / "listings.csv", rows, storage.csv_fields(CAMPERVAN))
             market.write(listings, CFG)
             self.assertIn("median 82.5k PLN", (listings / "market.md").read_text())
 

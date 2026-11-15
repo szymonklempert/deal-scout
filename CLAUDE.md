@@ -46,15 +46,24 @@ owner's approval before editing a reference file.
 - **Tests:** `python3 -m unittest discover -s tests`. Deployment: `deploy/README.md`.
 - **Changing the bot:** keep it standard library only, keep the allowlist behaviour (strangers get no answer), and
   add a test.
-- **Analysis:** `bot/process.py` runs the analysis with `PROVIDER` from `.env` (`bot/providers.py`).
+- **Analysis:** `bot/analysis.py` runs it with `PROVIDER` from `.env` (`bot/providers.py`).
   - `claude-code` (default) runs `claude -p` with no shell or web tools, write access only to `listings/`, and no
     API key in its environment.
   - `anthropic`, `openai` and `openrouter` make one structured-output request with no tools; their SDKs are imported
     only when chosen.
   - Keep these restrictions, and keep every provider returning the same schema.
 - **Domains:** nothing in `bot/` may be specific to one domain. Domain knowledge goes in `domains/<name>/`.
-- **Other modules:**
-  - `bot/config.py` reads `.env` and the environment once into `Settings`; nothing else reads `os.environ`.
-  - `bot/sheet.py` copies rows to a Google Sheet through `deploy/google-sheet.gs`;
+- **Modules** (one job each, no import cycles):
+  - `bot/process.py` ties one listing's analysis together (CLI: `python3 bot/process.py N`);
+  - `bot/analysis.py` runs Claude Code or the API provider;
+  - `bot/prompts.py` the prompt and the JSON schema;
+  - `bot/scoring.py` the score from the criteria checks (pure);
+  - `bot/storage.py` the CSV and `INDEX.md`;
+  - `bot/render.py` Telegram HTML;
+  - `bot/contact.py` phone numbers and seller drafts;
+  - `bot/providers.py` the API providers;
+  - `bot/config.py` reads `.env` and the environment once into `Settings` (nothing else reads `os.environ`) and defines the project root;
+  - `bot/domain.py` loads the active domain;
   - `bot/market.py` builds `listings/market.md`;
+  - `bot/sheet.py` copies rows to a Google Sheet through `deploy/google-sheet.gs`;
   - `bot/usage.py` records Claude usage per run.

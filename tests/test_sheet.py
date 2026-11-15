@@ -9,13 +9,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
 import config  # noqa: E402
-
 import domain  # noqa: E402
-import process  # noqa: E402
 import sheet  # noqa: E402
+import storage  # noqa: E402
 
 CAMPERVAN = domain.load("campervan")
-FIELDS = process.csv_fields(CAMPERVAN)
+FIELDS = storage.csv_fields(CAMPERVAN)
 SETTINGS = config.Settings(sheet_url="https://script.google.com/macros/s/x/exec", sheet_secret="s3cret")
 
 
@@ -55,10 +54,9 @@ class SheetTests(unittest.TestCase):
         self.assertIsNone(sheet.link(SETTINGS))
 
     def test_push_all_copies_every_row_with_all_columns(self):
-        import process
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "listings.csv"
-            process.write_rows(path, {2: {"number": 2, "title": "B"}, 1: {"number": 1, "title": "A"}}, FIELDS)
+            storage.write_rows(path, {2: {"number": 2, "title": "B"}, 1: {"number": 1, "title": "A"}}, FIELDS)
             opener = FakeOpener('{"ok": true, "row": 2}')
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(sheet.push_all(path, FIELDS, SETTINGS, opener=opener), 2)

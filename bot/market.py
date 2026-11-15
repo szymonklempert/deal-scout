@@ -17,6 +17,10 @@ import sys
 import time
 from pathlib import Path
 
+import config
+import domain
+from storage import read_rows
+
 MIN_N = 4
 VAT = 1.23
 # Grouping comes from the domain's domain.json ("market"); these are used when it says nothing.
@@ -179,17 +183,12 @@ def build(rows, cfg=None, today=None):
 
 def write(listings_dir, cfg: dict):
     """Rebuild market.md in listings_dir; cfg is the domain's "market" settings."""
-    import process  # process imports market; storage moves out of process in the next step
-    rows = list(process.read_rows(Path(listings_dir) / "listings.csv").values())
+    rows = list(read_rows(Path(listings_dir) / "listings.csv").values())
     (Path(listings_dir) / "market.md").write_text(build(rows, cfg), encoding="utf-8")
 
 
 def main():
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import config
-
-    import domain
-    root = Path(__file__).resolve().parent.parent
+    root = config.ROOT
     config.load_env(root / ".env")
     settings = config.Settings.from_env()
     try:

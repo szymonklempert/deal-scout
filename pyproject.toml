@@ -22,7 +22,7 @@ select = [
 convention = "pep257"
 
 [tool.ruff.lint.isort]
-known-first-party = ["bot", "domain", "market", "process", "providers", "sheet", "usage"]
+known-first-party = ["analysis", "bot", "config", "contact", "domain", "errors", "market", "process", "prompts", "providers", "render", "scoring", "sheet", "storage", "usage"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests put bot/ on sys.path before importing it, and test names and fakes don't need docstrings.

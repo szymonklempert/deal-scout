@@ -17,16 +17,16 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
 
-from config import Settings, load_env
-
+import contact as contacts
 import domain
 import process
 import providers
+import render
 import sheet
+import usage
+from config import ROOT, Settings, load_env
 
-ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("dealscout")
 log.addHandler(logging.NullHandler())  # quiet unless setup_logging() adds real handlers
 
@@ -258,7 +258,6 @@ class Bot:
         elif cmd == "/status":
             self.reply(chat, self.status())
         elif cmd == "/usage":
-            import usage
             self.reply(chat, usage.summary(self.root / "logs" / "usage.jsonl"))
         elif cmd == "/sheet":
             if self.sheet_link:
@@ -363,8 +362,7 @@ class Bot:
             log.warning("Telegram refused a formatted message (%s); sending plain text", exc)
             plain = item["text"]
             if item.get("html"):
-                import html
-                plain = html.unescape(re.sub(r"</?[biu]>", "", plain))
+                plain = render.plain_text(plain)
             self.api.send_message(self.allowed, plain)
             if item.get("fallback_url"):
                 self.api.send_message(self.allowed, "Open %s and paste the message above." % item["fallback_url"])
@@ -447,10 +445,10 @@ def main():
         return process.process_listing(ROOT, n, settings=settings, domain=d)
 
     def contact(n, phone):
-        return process.contact_for(ROOT, n, phone)
+        return contacts.contact_for(ROOT, n, phone)
 
     def seller_text(n, kind, phone):
-        return process.seller_text(ROOT, n, kind, phone)
+        return contacts.seller_text(ROOT, n, kind, phone)
 
     analyse = mode in ("manual", "auto")
     bot = Bot(TelegramAPI(settings.telegram_token), ROOT, settings.allowed_user_id, settings.group_window_seconds,

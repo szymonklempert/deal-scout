@@ -17,11 +17,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "bot"))
 sys.path.insert(0, str(HERE))
-import config  # noqa: E402
-from test_process import FakeRunner  # noqa: E402
-from test_providers import FakeAnthropic, FakeOpenAI  # noqa: E402
+from fakes import FakeAnthropic, FakeOpenAI, FakeRunner  # noqa: E402
 
+import analysis  # noqa: E402
 import bot as botmod  # noqa: E402
+import config  # noqa: E402
+import contact  # noqa: E402
 import domain  # noqa: E402
 import process  # noqa: E402
 
@@ -118,7 +119,7 @@ class GoldenTests(unittest.TestCase):
             (folder / "notes.txt").write_text(notes + "\n", encoding="utf-8")
 
     def test_claude_code_command(self):
-        cmd = process.claude_command("007", "opus", self.domain)
+        cmd = analysis.claude_command("007", "opus", self.domain)
         self.check("claude_command.txt", "\n".join(cmd[:2] + cmd[3:-1]) + "\n")
         self.check("prompt_claude_code.txt", cmd[2] + "\n")
         self.check("schema.json", json.dumps(json.loads(cmd[-1]), indent=2, ensure_ascii=False) + "\n")
@@ -171,10 +172,10 @@ class GoldenTests(unittest.TestCase):
         self.check("INDEX.md", listings.joinpath("INDEX.md").read_text(encoding="utf-8"))
         self.check("market.md", mask(listings.joinpath("market.md").read_text(encoding="utf-8")))
         self.check("001.json", listings.joinpath("001.json").read_text(encoding="utf-8"))
-        drafts = (process.seller_text(self.root, 1, "msg", "48600111222")
-                  + process.seller_text(self.root, 1, "sms", "48600111222")
-                  + process.seller_text(self.root, 1, "sms", "")
-                  + process.contact_for(self.root, 2, "+49 151 2345 6789"))
+        drafts = (contact.seller_text(self.root, 1, "msg", "48600111222")
+                  + contact.seller_text(self.root, 1, "sms", "48600111222")
+                  + contact.seller_text(self.root, 1, "sms", "")
+                  + contact.contact_for(self.root, 2, "+49 151 2345 6789"))
         self.check("drafts.txt", message_text(drafts))
 
     def test_bot_transcript(self):
@@ -183,8 +184,8 @@ class GoldenTests(unittest.TestCase):
             return process.process_listing(self.root, n, settings=self.settings, domain=self.domain, model="opus",
                                            runner=FakeRunner(result()))
         bot = botmod.Bot(api, self.root, 1, window_seconds=180, clock=lambda: 1000.0, processor=processor,
-                         contact=lambda n, phone: process.contact_for(self.root, n, phone), sheet_link=SHEET_LINK,
-                         seller_text=lambda n, kind, phone: process.seller_text(self.root, n, kind, phone))
+                         contact=lambda n, phone: contact.contact_for(self.root, n, phone), sheet_link=SHEET_LINK,
+                         seller_text=lambda n, kind, phone: contact.seller_text(self.root, n, kind, phone))
 
         def say(text=None, user=1, photo=None):
             m = {"from": {"id": user}, "chat": {"id": user}, "date": 1000}
