@@ -76,6 +76,12 @@ class Recorder:
         return b"IMG"
 
 
+def user_text(content):
+    """The user message of an API request as the model gets it, images as placeholders."""
+    return "\n".join(f"<image {b['source']['media_type']}>" if b["type"] == "image" else b["text"]
+                     for b in content) + "\n"
+
+
 def mask(text):
     return DATE.sub("<date>", text)
 
@@ -136,8 +142,7 @@ class GoldenTests(unittest.TestCase):
         kw = client.calls[0][1]
         content = kw["messages"][0]["content"]
         self.check("api_system.txt", kw["system"][0]["text"] + "\n")
-        self.check("api_user.txt", "\n".join(f"<image {b['source']['media_type']}>" if b["type"] == "image"
-                                             else b["text"] for b in content) + "\n")
+        self.check("api_user.txt", user_text(content))
         self.check("schema_card.json", json.dumps(kw["output_config"]["format"]["schema"], indent=2,
                                                   ensure_ascii=False) + "\n")
         self.check("card_api.md", (self.root / "listings" / "001.md").read_text(encoding="utf-8"))
@@ -147,6 +152,16 @@ class GoldenTests(unittest.TestCase):
         process.process_listing(self.root, 1, settings=settings, domain=self.domain, model="gpt-x", client=client)
         kw = client.calls[0]
         self.assertEqual(kw["messages"][0]["content"], self.read("api_system.txt")[:-1])
+
+    def test_api_request_with_the_sellers_reply(self):
+        self.listing(1, links="https://example.com/item/1", notes="[2026-01-01 10:00] seen in a group")
+        folder = self.root / "inbox" / "001"
+        (folder / "replies.txt").write_text("[2026-01-02 09:30] Battery health is 91%\n", encoding="utf-8")
+        (folder / "reply_01.jpg").write_bytes(b"\xff\xd8reply")
+        settings = dataclasses.replace(self.settings, provider="anthropic")
+        client = FakeAnthropic(text=json.dumps(dict(result(), card_markdown="# card\n")))
+        process.process_listing(self.root, 1, settings=settings, domain=self.domain, client=client)
+        self.check("api_user_reply.txt", user_text(client.calls[0][1]["messages"][0]["content"]))
 
     def read(self, name):
         return (GOLDEN / name).read_text(encoding="utf-8")
@@ -248,6 +263,42 @@ class GoldenTests(unittest.TestCase):
         tap("fm:1:1:m")
         tap("fd:1")
         self.check("fix_transcript.txt", message_text(api.sent))
+
+    def test_reply_transcript(self):
+        api = Recorder()
+        self.listing(1, links="https://example.com/item/1")
+        process.process_listing(self.root, 1, settings=self.settings, domain=self.domain, model="opus",
+                                runner=FakeRunner(result()))
+        answered = result(
+            missing=[], summary="Battery checks out; worth a visit.", verdict="worth a visit",
+            seller_message="Thank you for the answers.\nCould I see the phone in person this week?",
+            seller_sms="Thank you! Could I see the phone this week?",
+            criteria_checks=[dict(c, result="met") if c["criterion"] == "Battery health shown" else c
+                             for c in result()["criteria_checks"]])
+
+        def processor(n):
+            return process.process_listing(self.root, n, settings=self.settings, domain=self.domain, model="opus",
+                                           runner=FakeRunner(answered))
+        bot = botmod.Bot(api, self.root, 1, clock=lambda: 1000.0, processor=processor, sheet_link=SHEET_LINK)
+
+        def say(text=None, photo=None):
+            m = {"from": {"id": 1}, "chat": {"id": 1}, "date": 1000}
+            if text is not None:
+                m["text"] = text
+            if photo:
+                m["photo"] = [{"file_id": photo}]
+            bot.handle_update({"update_id": 1, "message": m})
+
+        def tap(data):
+            bot.handle_update({"update_id": 2, "callback_query": {"id": "cb", "from": {"id": 1}, "data": data}})
+
+        tap("sr:1")
+        say(photo="reply")
+        say("Battery health is 91%, serial number on the box")
+        bot.flush_ack(force=True)
+        tap("sa:1")
+        bot.run_job(bot.jobs.get_nowait())
+        self.check("reply_transcript.txt", message_text(api.sent))
 
     def test_corrections_are_logged_without_personal_data(self):
         self.listing(1)

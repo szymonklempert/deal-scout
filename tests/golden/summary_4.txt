@@ -11,4 +11,5 @@ Score – (fill in criteria.md) · specs <b>–</b> · <b>ask first</b>
 
 🚩 price above fair range · no receipt
 📄 listings/004.md
+[📨 Seller replied] sr:4
 [📊 Open sheet] https://docs.google.com/spreadsheets/d/golden/edit

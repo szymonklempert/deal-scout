@@ -81,6 +81,7 @@ INTRO_CLAUDE_CODE = """You are reviewing a listing for a {item}. Process only th
 CLAUDE.md. First read these files in {ddir}/: {criteria}checklist.md, card-template.md{refs}.
 Also read listings/market.md if it exists (asking prices from the owner's own listings).
 Then look at every photo in inbox/{nnn}/ and read notes.txt and links.txt if they exist.
+If replies.txt or reply_* images exist there, they are the seller's answers to the owner's questions: read them too.
 
 Write listings/{nnn}.md from {ddir}/card-template.md. In its fit section list what is met, missed and unknown and
 any deal breakers hit, but give no numeric score: a script calculates the score from your criteria checks.
@@ -91,7 +92,8 @@ Do not create or edit any other file (a script updates listings/INDEX.md and the
 
 INTRO_API = """You are reviewing a listing for a {item} for a private buyer. The buyer's files follow these
 instructions: {criteria}checklist.md, card-template.md{refs}. The listing itself (photos, the owner's notes and links,
-and market prices from the owner's own listings if any) is in the user message. Use only what you are given.
+and market prices from the owner's own listings if any) is in the user message.
+The seller's replies, if any, are in the user message too. Use only what you are given.
 
 Write the listing card in card_markdown, following card-template.md. In its fit section list what is met, missed and
 unknown and any deal breakers hit, but give no numeric score: a script calculates the score from your criteria checks.
@@ -131,6 +133,9 @@ Then return the structured result:
   words each.
 - red_flags: from checklist.md, the reference files and what the listing shows.
 - summary: one short sentence: the main reason for the verdict.
+- If the seller has replied (replies.txt or reply_* images): their answers override the listing where they differ, and
+  what they answered is no longer missing. seller_message and seller_sms then become a short follow-up in {language}:
+  thank them and ask only what is still open; if nothing important is open, propose a viewing.
 - seller_message: a ready-to-send first message to the seller (WhatsApp or Messenger), in {language}, polite and
   plain. It is the first contact, to decide whether the {unit} is worth seeing, so ask only what the seller can
   answer remotely, following the rules above. Greeting, one line saying which {unit} it is about, then numbered
@@ -158,10 +163,10 @@ def prompt(nnn: str, d: Domain, api: bool = False) -> str:
 
 
 def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[Path]]:
-    """Return (system, user_text, photo paths) for an API provider.
+    """Return (system, user_text, image paths) for an API provider.
 
     The system prompt holds the instructions and the domain's files (the same for every listing, so providers can
-    cache them); the listing goes in the user turn.
+    cache them); the listing goes in the user turn. The images are the listing's photos, then the seller's replies.
     """
     files = ((["criteria.md"] if d.has_criteria() else []) + ["checklist.md", "card-template.md"]
              + list(d.reference_files))
@@ -175,9 +180,16 @@ def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[P
     for name, label in (("notes.txt", "The owner's notes"), ("links.txt", "Links")):
         if (folder / name).exists():
             user.append(f"{label}:\n{(folder / name).read_text(encoding='utf-8').strip()}")
+    if (folder / "replies.txt").exists():
+        user.append(f"The seller's replies:\n{(folder / 'replies.txt').read_text(encoding='utf-8').strip()}")
     market_md = Path(root) / "listings" / "market.md"
     if market_md.exists():
         user.append("Market prices from the owner's own listings:\n" + market_md.read_text(encoding="utf-8").strip())
     photos = sorted(x for x in folder.glob("photo_*") if x.is_file())
-    user.append(f"{len(photos)} photo(s) of the listing are attached, in order.")
-    return "\n".join(parts), "\n\n".join(user), photos
+    replies = sorted(x for x in folder.glob("reply_*") if x.is_file())
+    if replies:
+        user.append(f"{len(photos)} photo(s) of the listing, then {len(replies)} of the seller's replies, "
+                    "are attached, in order.")
+    else:
+        user.append(f"{len(photos)} photo(s) of the listing are attached, in order.")
+    return "\n".join(parts), "\n\n".join(user), photos + replies

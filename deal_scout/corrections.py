@@ -20,7 +20,7 @@ from deal_scout.feedback import Overrides, apply_overrides, log_feedback, overri
 from deal_scout.feedback_menu import FixReply, check_screen, checks_screen, confirm, menu, spec_screen
 from deal_scout.process import load_listing, refresh_market, sheet_note, summary_message
 from deal_scout.prompts import Listing
-from deal_scout.render import Message
+from deal_scout.render import Message, score_text
 from deal_scout.scoring import ordered_specs
 from deal_scout.storage import csv_fields, csv_row, read_rows, write_index, write_rows
 
@@ -139,8 +139,3 @@ def before_value(before: Listing, kind: str, name: str) -> Any:
     if kind == "spec":
         return ordered_specs(before, [name])[0][2]
     return next(c["result"] for c in before["criteria_checks"] if c["criterion"] == name)
-
-
-def score_text(score: object) -> str:
-    """Format a row's score for display: the number, or an en dash when there is none."""
-    return "–" if score in ("", None) else str(score)

@@ -29,6 +29,11 @@ def esc(text: object) -> str:
     return html.escape(str(text), quote=False)
 
 
+def score_text(score: object) -> str:
+    """Format a row's score for display: the number, or an en dash when there is none."""
+    return "–" if score in ("", None) else str(score)
+
+
 def dot(score: float | None) -> str:
     """Return the traffic-light emoji for a 0-10 score."""
     if score is None:
@@ -62,6 +67,7 @@ def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | 
         buttons.append(("💬 WhatsApp message", f"msg:{n}:{phone or ''}"))
     if (data.get("seller_sms") or "").strip():
         buttons.append(("✉️ SMS", f"sms:{n}:{phone or ''}"))
+    buttons.append(("📨 Seller replied", f"sr:{n}"))
     if data.get("specs") or data.get("criteria_checks"):
         buttons.append(("📝 Feedback", f"fx:{n}:{phone or ''}"))
     if sheet_link:
@@ -70,8 +76,11 @@ def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | 
 
 
 def summary_text(n: int, data: Listing, row: Row, specs: list[str], others: Sequence[int] = (),
-                 phone: str | None = None) -> str:
-    """Telegram HTML: header, the fixed spec list (one line each, with a score), then flags and contact."""
+                 phone: str | None = None, reply_note: str = "") -> str:
+    """Telegram HTML: header, the fixed spec list (one line each, with a score), then flags and contact.
+
+    reply_note, when given, is a line about what the seller's reply changed; it follows the summary sentence.
+    """
     price = f"<b>{fmt_int(data['price_pln'])} PLN</b>" if data.get("price_pln") is not None else "price not shown"
     where = [price] + [esc(data[k]) for k in ("location", "source") if data.get(k)]
     head = [f"<b>#{n} {esc(data.get('title') or 'listing')}</b>", " · ".join(where)]
@@ -84,6 +93,8 @@ def summary_text(n: int, data: Listing, row: Row, specs: list[str], others: Sequ
     head.append(f"Score {sc} · specs <b>{specs_text}</b> · <b>{esc(data.get('verdict', '?'))}</b>")
     if data.get("summary"):
         head.append(f"<i>{esc(data['summary'])}</i>")
+    if reply_note:
+        head.append(reply_note)
 
     marks = spec_marks(data)
     spec_lines = []

@@ -358,6 +358,143 @@ class BotTests(unittest.TestCase):
         self.assertEqual(bot.feedback_phone, {})
         self.assertFalse((self.root / ".state.json").exists() and "4860" in (self.root / ".state.json").read_text())
 
+    def reply_bot(self, auto=False, processor=True):
+        bot, done = self.analysing_bot(auto=auto)
+        if not processor:
+            bot = botmod.Bot(self.api, self.root, 1, window_seconds=180, clock=self.clock)
+        bot.handle_update(msg(photo="a"))
+        bot.handle_update(msg(text="/new"))
+        self.api.sent.clear()
+        return bot, done
+
+    def tap_reply(self, bot, data, user=1):
+        bot.handle_update({"update_id": 5, "callback_query": {"id": "c", "from": {"id": user}, "data": data}})
+
+    def test_stranger_seller_replied_tap_is_ignored(self):
+        bot, _ = self.reply_bot()
+        self.tap_reply(bot, "sr:1", user=99)
+        self.assertEqual((bot.attach, self.api.sent), (None, []))
+
+    def test_seller_replied_tap_starts_reply_mode_and_clears_the_pending_reason(self):
+        bot, calls = self.fix_bot()
+        bot.handle_update(msg(photo="a"))
+        self.api.sent.clear()
+        self.fix_tap(bot, "fv:1:0:3")
+        self.tap_reply(bot, "sr:1")
+        self.assertIsNone(bot.pending_reason)
+        self.assertEqual(self.api.sent[-1], "📨 #1: send the seller's reply: paste the text or send screenshots. "
+                                           "Tap Re-analyse when done.")
+        self.assertEqual(self.api.buttons[-1], [("✅ Re-analyse", "sa:1"), ("Cancel", "sc:1")])
+        bot.handle_update(msg(text="late reason"))
+        self.assertEqual([c[1] for c in calls], ["value"])  # taken as the seller's reply, not as a reason
+
+    def test_messages_in_reply_mode_go_to_the_listing_and_are_confirmed_once(self):
+        bot, _ = self.reply_bot()
+        self.tap_reply(bot, "sr:1")
+        self.api.sent.clear()
+        bot.handle_update(msg(photo="shot"))
+        self.clock.t += 20
+        bot.handle_update(msg(text="VIN is ABC https://x.pl/vin"))
+        bot.tick()
+        self.assertEqual(self.api.sent, [])
+        self.clock.t += 3
+        bot.tick()
+        bot.tick()
+        self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001"])  # no new listing
+        folder = self.root / "inbox/001"
+        self.assertEqual(len(list(folder.glob("reply_*"))), 1)
+        self.assertIn("VIN is ABC", (folder / "replies.txt").read_text())
+        self.assertFalse((folder / "notes.txt").exists() or (folder / "links.txt").exists())
+        self.assertEqual(self.api.sent, ["📨 #1: 1 photo(s), 1 text(s) saved as the seller's reply."])
+        self.assertIsNone(bot.state["current"])
+
+    def test_each_message_extends_reply_mode(self):
+        bot, _ = self.reply_bot()
+        self.tap_reply(bot, "sr:1")
+        self.clock.t += 800
+        bot.handle_update(msg(text="one"))
+        self.clock.t += 800
+        bot.tick()
+        self.assertIsNotNone(bot.attach)
+        bot.handle_update(msg(text="two"))
+        self.assertEqual((self.root / "inbox/001/replies.txt").read_text().count("\n"), 2)
+
+    def test_done_button_and_command_reanalyse_the_listing(self):
+        bot, done = self.reply_bot()
+        self.tap_reply(bot, "sr:1")
+        bot.handle_update(msg(text="answer"))
+        self.tap_reply(bot, "sa:1")
+        self.assertIsNone(bot.attach)
+        self.assertEqual(self.api.sent[-2:], ["📨 #1: 0 photo(s), 1 text(s) saved as the seller's reply.",
+                                              "#1: analysing, usually about a minute..."])
+        self.tap_reply(bot, "sr:1")
+        bot.handle_update(msg(text="/done"))
+        self.assertIsNone(bot.attach)
+        self.drain(bot)
+        self.assertEqual(done, [1, 1])
+
+    def test_done_in_reply_mode_with_analysis_off(self):
+        bot, _ = self.reply_bot(processor=False)
+        self.tap_reply(bot, "sr:1")
+        bot.handle_update(msg(text="/done"))
+        self.assertIn("Analysis is off", self.api.sent[-1])
+        self.assertTrue(bot.jobs.empty())
+
+    def test_cancel_ends_reply_mode_and_keeps_what_was_sent(self):
+        bot, done = self.reply_bot()
+        self.tap_reply(bot, "sr:1")
+        bot.handle_update(msg(text="answer"))
+        self.tap_reply(bot, "sc:1")
+        self.assertIsNone(bot.attach)
+        self.assertEqual(self.api.sent[-1], "📨 #1: reply mode ended; what you sent is kept. Tap 📨 again to add more.")
+        self.assertTrue((self.root / "inbox/001/replies.txt").exists())
+        bot.handle_update(msg(text="a plain note"))  # reply mode is over: a new listing
+        self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001", "002"])
+        self.assertEqual(done, [])
+
+    def test_another_command_ends_reply_mode_then_runs(self):
+        bot, _ = self.reply_bot()
+        self.tap_reply(bot, "sr:1")
+        bot.handle_update(msg(text="/list"))
+        self.assertIsNone(bot.attach)
+        self.assertEqual(self.api.sent[-2], "📨 #1: reply mode ended; what you sent is kept. Tap 📨 again to add more.")
+        self.assertIn("#1  1 photo(s)", self.api.sent[-1])
+
+    def test_expiry_without_auto_analysis_offers_the_button(self):
+        bot, _ = self.reply_bot()
+        self.tap_reply(bot, "sr:1")
+        bot.handle_update(msg(text="answer"))
+        self.clock.t += 901
+        bot.tick()
+        self.assertIsNone(bot.attach)
+        self.assertEqual(self.api.sent[-1], "📨 #1: reply mode ended after 15 minutes of quiet. "
+                                           "Re-analyse when you're ready:")
+        self.assertEqual(self.api.buttons[-1], [("✅ Re-analyse", "sa:1")])
+        self.assertTrue(bot.jobs.empty())
+
+    def test_expiry_with_auto_analysis_queues_it_only_when_something_was_saved(self):
+        bot, done = self.reply_bot(auto=True)
+        self.tap_reply(bot, "sr:1")
+        bot.handle_update(msg(text="answer"))
+        self.clock.t += 901
+        bot.tick()
+        self.drain(bot)
+        self.assertEqual(done, [1])
+        bot, done = self.reply_bot(auto=True)
+        self.tap_reply(bot, "sr:1")
+        self.clock.t += 901
+        bot.tick()
+        self.assertTrue(bot.jobs.empty())
+        self.assertEqual(self.api.buttons[-1], [("✅ Re-analyse", "sa:1")])
+
+    def test_a_message_after_expiry_is_an_ordinary_one(self):
+        bot, _ = self.reply_bot()
+        self.tap_reply(bot, "sr:1")
+        self.clock.t += 901
+        bot.handle_update(msg(text="new listing note"))
+        self.assertIn("reply mode ended after 15 minutes", self.api.sent[1])
+        self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001", "002"])
+
     def test_usage_command(self):
         self.bot.handle_update(msg(text="/usage"))
         self.assertIn("Last 7 days: nothing", self.api.sent[-1])

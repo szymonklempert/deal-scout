@@ -18,7 +18,7 @@ class NoSellerMessageTests(unittest.TestCase):
         out = process.process_listing(root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
                                       runner=FakeRunner(dict(RESULT, seller_message=" ", seller_sms="")))
         self.assertEqual(len(out), 1)
-        self.assertEqual(out[0].buttons, (("📝 Feedback", "fx:1:48600123456"),))
+        self.assertEqual(out[0].buttons, (("📨 Seller replied", "sr:1"), ("📝 Feedback", "fx:1:48600123456")))
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -45,7 +45,7 @@ class ProcessListingTests(unittest.TestCase):
         self.assertTrue(summary.html)
         text = summary.text
         self.assertEqual(summary.buttons, (("💬 WhatsApp message", "msg:1:48600123456"),
-                                           ("✉️ SMS", "sms:1:48600123456"),
+                                           ("✉️ SMS", "sms:1:48600123456"), ("📨 Seller replied", "sr:1"),
                                            ("📝 Feedback", "fx:1:48600123456")))
         message = contact.seller_text(self.root, 1, "msg", "48600123456")[0]
         self.assertTrue(message.text.startswith("Dzień dobry"))
@@ -87,6 +87,37 @@ class ProcessListingTests(unittest.TestCase):
         self.assertEqual(rows[1]["model_family"], "Ducato/Jumper/Boxer X250 (2006-2014)")
         self.assertEqual(rows[1]["fair_price_high"], "115000")
         self.assertTrue((self.root / "listings/market.md").exists())
+
+    def analyse_with_reply(self, runner_data=None, replies=1):
+        folder = self.root / "inbox" / "001"
+        for i in range(replies):
+            (folder / f"reply_{i + 1:02d}.jpg").write_bytes(b"r")
+        return process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
+                                       runner=FakeRunner(runner_data or RESULT))
+
+    def test_seller_reply_adds_one_line_and_stores_replies_seen(self):
+        first = process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
+                                        runner=FakeRunner())[0]
+        self.assertNotIn("📨 After", first.text)
+        self.assertNotIn("replies_seen", json.loads((self.root / "listings/001.json").read_text()))
+        better = dict(RESULT, missing=["DMC"], criteria_checks=[check("Budget", "met", True),
+                                                                check("Fixed bed", "met"), check("Toilet", "met")])
+        text = self.analyse_with_reply(better)[0].text
+        self.assertEqual(json.loads((self.root / "listings/001.json").read_text())["replies_seen"], 1)
+        self.assertRegex(text, r"</i>\n📨 After the seller's reply: score 6\.2 → [\d.]+ · answered: VIN\n\n")
+        again = process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
+                                        runner=FakeRunner(better))[0]
+        self.assertNotIn("📨 After", again.text)  # no new reply since the last analysis
+        self.assertIn(("📨 Seller replied", "sr:1"), again.buttons)
+
+    def test_reply_note_says_unchanged(self):
+        process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus", runner=FakeRunner())
+        text = self.analyse_with_reply(replies=2)[0].text
+        self.assertIn("📨 After the seller's reply: score 6.2 (unchanged)\n", text)
+        self.assertEqual(json.loads((self.root / "listings/001.json").read_text())["replies_seen"], 2)
+
+    def test_first_analysis_with_replies_has_no_comparison(self):
+        self.assertNotIn("📨 After", self.analyse_with_reply()[0].text)
 
     def test_reprocessing_replaces_row_and_keeps_status(self):
         process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus", runner=FakeRunner())

@@ -33,6 +33,8 @@ def code_version() -> str:
         h.update(path.read_bytes())
     return h.hexdigest()[:8]
 URL_RE = re.compile(r"https?://[^\s<>\"']+")
+REPLY_ENDED = "reply mode ended; what you sent is kept. Tap 📨 again to add more."
+ANALYSIS_OFF = "Analysis is off. Set ANALYSIS=manual or ANALYSIS=auto in .env and restart."
 HELP = (
     "Send me screenshots, links and notes about a listing. Everything sent close together lands in one listing.\n"
     "/new  start a new listing now\n"
@@ -97,6 +99,8 @@ class BotState(TypedDict):
 FIX_PREFIXES = {"fx": "open", "fb": "back", "fs": "spec", "fv": "value", "fc": "checks", "fk": "check",
                 "fm": "mark", "fr": "skip", "fd": "done"}  # callback prefix -> corrections.fix action
 REASON_SECONDS = 600  # how long the next plain text message counts as the reason for a correction
+ATTACH_SECONDS = 900  # how long reply mode lasts after the last message
+REPLY_TAPS = ("sr", "sa", "sc")  # seller replied, re-analyse, cancel
 
 
 @dataclass
@@ -114,6 +118,21 @@ class PendingAck:
 
     n: int
     at: float
+    reply: bool = False  # confirms the seller's reply rather than the listing's own photos
+
+
+@dataclass
+class PendingAttach:
+    """Reply mode: the owner's messages are the seller's reply to listing n until `until`. Memory only."""
+
+    n: int
+    until: float
+    saved: int = 0  # messages saved in this reply mode
+
+
+def reanalyse_button(n: int) -> tuple[str, str]:
+    """Return the button that sends listing n to re-analysis."""
+    return ("✅ Re-analyse", f"sa:{n}")
 
 
 class Bot:
@@ -136,6 +155,7 @@ class Bot:
         self.seller_text = seller_text  # callable(n, "msg"|"sms", phone) -> messages for a button tap
         self.fixer = fixer  # callable(n, action, args) -> what to show after a 📝 Feedback tap
         self.pending_reason: PendingReason | None = None  # in memory only; a restart forgets it
+        self.attach: PendingAttach | None = None  # reply mode, in memory only
         self.feedback_phone: dict[int, str] = {}  # listing -> phone from a Feedback tap (memory only)
         self.version = code_version()
         self.started = time.time()
@@ -190,6 +210,7 @@ class Bot:
             return
         if user != self.allowed:
             return  # strangers get no answer at all
+        self.expire_attach()
         text = (msg.get("text") or msg.get("caption") or "").strip()
         if self.consume_reason(msg, text):
             return
@@ -201,7 +222,10 @@ class Bot:
         if not ids and not text:
             self.reply(chat, "I can save photos, screenshots, links and text.")
             return
-        self.save_message(msg, text, ids)
+        if self.attach:
+            self.save_reply(self.attach, msg, text, ids)
+        else:
+            self.save_message(msg, text, ids)
 
     def consume_reason(self, msg: dict[str, Any], text: str) -> bool:
         """Take a plain text message as the reason for the last correction; any message ends the wait.
@@ -232,23 +256,45 @@ class Bot:
             self.inbox.add_note(n, text, msg.get("date") or self.clock())
             self.inbox.add_links(n, URL_RE.findall(text))
         # Confirm once, after the photos stop arriving (an album comes as several messages), with the full count.
-        if self.ack and self.ack.n != n:
+        self.start_ack(n, reply=False)
+
+    def start_ack(self, n: int, reply: bool) -> None:
+        """Queue a "saved" confirmation for listing n, first sending the one still pending for something else."""
+        if self.ack and (self.ack.n != n or self.ack.reply != reply):
             self.flush_ack(force=True)
-        self.ack = PendingAck(n=n, at=self.clock())
+        self.ack = PendingAck(n=n, at=self.clock(), reply=reply)
+
+    def save_reply(self, attach: PendingAttach, msg: dict[str, Any], text: str, ids: Sequence[str]) -> None:
+        """Save a message as the seller's reply to the listing in reply mode, and keep the mode open."""
+        n = attach.n
+        log.info("#%d: saved %d reply photo(s)%s", n, len(ids), " and text" if text else "")
+        for file_id in ids:
+            self.inbox.add_reply_photo(n, self.api.get_file_bytes(file_id))
+        if text:
+            self.inbox.add_reply(n, text, msg.get("date") or self.clock())
+        attach.until = self.clock() + ATTACH_SECONDS
+        attach.saved += 1
+        self.start_ack(n, reply=True)
 
     ACK_DELAY = 2  # seconds of quiet before confirming what was saved
 
     def flush_ack(self, force: bool = False) -> None:
         """Send the pending "saved" confirmation once the photos stop arriving, or at once when forced."""
         if self.ack and (force or self.clock() - self.ack.at >= self.ACK_DELAY):
-            n = self.ack.n
+            n, reply = self.ack.n, self.ack.reply
             self.ack = None
+            if reply:
+                photos, texts = self.inbox.reply_summary(n)
+                self.reply(self.allowed, f"📨 #{n}: {photos} photo(s), {texts} text(s) saved as the seller's reply.")
+                return
             photos, links = self.inbox.summary(n)
             self.reply(self.allowed, f"#{n}: {photos} photo(s), {len(links)} link(s) saved.")
 
     def handle_command(self, chat: int | None, cmd: str, args: Sequence[str] = ()) -> None:
         """Answer a slash command from the owner."""
         self.flush_ack(force=True)  # confirm what was saved before answering (e.g. before /done starts)
+        if self.leave_reply_mode(cmd, args):
+            return
         handlers: dict[str, Callable[[int | None, Sequence[str]], None]] = {
             "/start": self.cmd_help, "/help": self.cmd_help, "/new": self.cmd_new, "/done": self.done,
             "/phone": self.phone, "/status": self.cmd_status, "/usage": self.cmd_usage, "/sheet": self.cmd_sheet,
@@ -305,7 +351,7 @@ class Bot:
     def done(self, chat: int | None, args: Sequence[str]) -> None:
         """Queue the analysis of the open listing, or of the listing number given."""
         if self.processor is None:
-            self.reply(chat, "Analysis is off. Set ANALYSIS=manual or ANALYSIS=auto in .env and restart.")
+            self.reply(chat, ANALYSIS_OFF)
             return
         if args and args[0].lstrip("#").isdigit():
             n = int(args[0].lstrip("#"))
@@ -346,6 +392,9 @@ class Bot:
         except Exception as exc:
             log.warning("answerCallbackQuery failed: %s", exc)
         parts = str(cb.get("data") or "").split(":")
+        if parts[0] in REPLY_TAPS and len(parts) > 1 and parts[1].isdigit():
+            self.handle_reply_tap(parts[0], int(parts[1]))
+            return
         if parts[0] in FIX_PREFIXES and len(parts) > 1 and parts[1].isdigit():
             self.handle_fix(cb, FIX_PREFIXES[parts[0]], int(parts[1]), parts[2:])
             return
@@ -360,6 +409,60 @@ class Bot:
         log.info("#%d: sent the %s draft", n, parts[0])
         for item in items:
             self.send(item)
+
+    def handle_reply_tap(self, kind: str, n: int) -> None:
+        """Answer a tap on 📨 Seller replied (sr), ✅ Re-analyse (sa) or Cancel (sc); the sender was already checked."""
+        if not (self.inbox.dir / f"{n:03d}").is_dir():
+            self.reply(self.allowed, f"There is no #{n}.")
+            return
+        self.flush_ack(force=True)
+        if kind == "sr":
+            self.enter_reply_mode(n)
+            return
+        if self.attach and self.attach.n == n:
+            self.attach = None
+        if kind == "sa":
+            self.request_analysis(n)
+        else:
+            self.reply(self.allowed, f"📨 #{n}: {REPLY_ENDED}")
+
+    def enter_reply_mode(self, n: int) -> None:
+        """Make the owner's next messages the seller's reply to listing n."""
+        self.pending_reason = None
+        self.attach = PendingAttach(n, until=self.clock() + ATTACH_SECONDS)
+        self.send(Message(f"📨 #{n}: send the seller's reply: paste the text or send screenshots. "
+                          "Tap Re-analyse when done.", buttons=(reanalyse_button(n), ("Cancel", f"sc:{n}")), columns=2))
+
+    def leave_reply_mode(self, cmd: str, args: Sequence[str]) -> bool:
+        """End reply mode before a command; True when the command was /done and became the re-analysis."""
+        attach, self.attach = self.attach, None
+        if attach is None:
+            return False
+        if cmd == "/done" and not args:
+            self.request_analysis(attach.n)
+            return True
+        self.reply(self.allowed, f"📨 #{attach.n}: {REPLY_ENDED}")
+        return False
+
+    def expire_attach(self) -> None:
+        """End reply mode after a quiet spell: re-analyse if something was saved and auto analysis is on."""
+        attach = self.attach
+        if attach is None or self.clock() <= attach.until:
+            return
+        self.attach = None
+        self.flush_ack(force=True)
+        if attach.saved and self.auto_analyse:
+            self.queue_analysis(attach.n)
+            return
+        self.send(Message(f"📨 #{attach.n}: reply mode ended after 15 minutes of quiet. Re-analyse when you're ready:",
+                          buttons=(reanalyse_button(attach.n),)))
+
+    def request_analysis(self, n: int) -> None:
+        """Queue listing n for analysis, or say that analysis is off."""
+        if self.processor is None:
+            self.reply(self.allowed, ANALYSIS_OFF)
+            return
+        self.queue_analysis(n)
 
     def handle_fix(self, cb: dict[str, Any], action: str, n: int, args: list[str]) -> None:
         """Answer a tap in the 📝 Feedback menu (the sender was already checked): show the next screen."""
@@ -451,6 +554,7 @@ class Bot:
         With auto analysis on, also analyse the open listing once its window has passed.
         """
         self.flush_ack()
+        self.expire_attach()
         cur = self.state.get("current")
         if self.auto_analyse and cur and self.clock() - cur["last"] > self.window:
             self.state["current"] = None

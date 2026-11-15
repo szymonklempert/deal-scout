@@ -1,0 +1,14 @@
+<image image/jpeg>
+<image image/jpeg>
+Listing #001.
+
+The owner's notes:
+[2026-01-01 10:00] seen in a group
+
+Links:
+https://example.com/item/1
+
+The seller's replies:
+[2026-01-02 09:30] Battery health is 91%
+
+1 photo(s) of the listing, then 1 of the seller's replies, are attached, in order.

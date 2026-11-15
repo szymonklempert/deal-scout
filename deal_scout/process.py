@@ -26,8 +26,10 @@ from deal_scout.contact import normalise_phone, scrub_phone
 from deal_scout.domain import Domain
 from deal_scout.errors import ProcessError
 from deal_scout.feedback import Overrides, apply_overrides, carry_overrides
+from deal_scout.inbox import reply_counts
 from deal_scout.prompts import Listing
 from deal_scout.render import Message, esc, plain_text, summary_buttons, summary_text
+from deal_scout.replies import reply_note
 from deal_scout.storage import Row, csv_fields, csv_row, read_rows, same_seller, write_index, write_rows
 
 log = logging.getLogger("dealscout")
@@ -52,7 +54,11 @@ def process_listing(root: Path | str, n: int, *, settings: Settings, domain: Dom
     raw_phone = data.pop("seller_phone", None)
     phone = normalise_phone(raw_phone)  # used for the button only, never saved
     scrub_phone(listings / (nnn + ".md"), raw_phone)
+    seen = sum(reply_counts(root / "inbox" / nnn))
+    if seen:
+        data["replies_seen"] = seen  # lets the next analysis tell whether the seller has replied since
     with storage.ROWS_LOCK:  # a score correction in the polling thread must not interleave with this update
+        previous = read_listing(listings / (nnn + ".json"))
         overrides, dropped = carry_overrides(read_overrides(listings / (nnn + ".json")), data)
         if dropped:
             log.info("#%s: %d check correction(s) dropped, the criteria changed", nnn, dropped)
@@ -63,12 +69,23 @@ def process_listing(root: Path | str, n: int, *, settings: Settings, domain: Dom
         links = root / "inbox" / nnn / "links.txt"
         link = links.read_text(encoding="utf-8").split()[0] if links.exists() and links.read_text().split() else ""
         shown = apply_overrides(data, overrides)
+        old_score = (rows.get(n) or {}).get("score")
         rows[n] = csv_row(n, shown, domain, old=rows.get(n), link=link)
         write_rows(listings / "listings.csv", rows, csv_fields(domain))
         write_index(listings / "INDEX.md", rows)
         refresh_market(listings, domain)
     note = sheet_note(rows[n], domain, settings, pusher)
-    return [summary_message(n, shown, rows, domain, phone, sheet.link(settings), note)]
+    changed = reply_note(previous, data, old_score, rows[n]["score"])
+    return [summary_message(n, shown, rows, domain, phone, sheet.link(settings), note, changed)]
+
+
+def read_listing(path: Path) -> Listing | None:
+    """Read listings/NNN.json as it was before this analysis; None when there is no readable earlier one."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def read_overrides(path: Path) -> Overrides:
@@ -103,9 +120,9 @@ def sheet_note(row: Row, domain: Domain, settings: Settings, pusher: Callable[..
 
 
 def summary_message(n: int, shown: Listing, rows: dict[int, Row], domain: Domain, phone: str | None,
-                    sheet_link: str | None, note: str = "") -> Message:
+                    sheet_link: str | None, note: str = "", reply_note: str = "") -> Message:
     """Build the summary Telegram message of listing n, from its (overridden) data and its CSV row."""
-    text = summary_text(n, shown, rows[n], domain.specs, same_seller(n, rows), phone) + note
+    text = summary_text(n, shown, rows[n], domain.specs, same_seller(n, rows), phone, reply_note) + note
     return Message(text=text[:4000], html=True, buttons=tuple(summary_buttons(n, shown, phone, sheet_link)))
 
 
