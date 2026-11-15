@@ -9,19 +9,35 @@ cached input and output tokens the way they are priced. Your plan's weekly limit
 /usage in Claude Code or claude.ai > Settings > Usage. Standard library only.
 """
 import json
-import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, TypedDict
 
 import config
 
 DAY = 86400
 
 
-def record(root, listing, out, ok):
+class RunStats(TypedDict, total=False):
+    """Token counts and timing of one API-provider run (providers.call); cost_usd may be missing or None."""
+
+    model: str
+    input_tokens: int
+    cached_tokens: int
+    output_tokens: int
+    duration_s: float
+    turns: int
+    cost_usd: float | None
+
+
+def record(root: Path | str, listing: int, out: dict[str, Any], ok: bool) -> dict[str, Any]:
     """Append one run. `out` is Claude Code's JSON result (may be {} when the run failed before answering)."""
     models = out.get("modelUsage") or {}
-    total = lambda key: sum(int(m.get(key) or 0) for m in models.values())  # noqa: E731
+
+    def total(key: str) -> int:
+        return sum(int(m.get(key) or 0) for m in models.values())
+
     rec = {
         "ts": round(time.time()),
         "listing": listing,
@@ -42,7 +58,8 @@ def record(root, listing, out, ok):
     return rec
 
 
-def record_api(root, listing, ok, provider, model, stats):
+def record_api(root: Path | str, listing: int, ok: bool, provider: str, model: str,
+               stats: RunStats) -> dict[str, Any]:
     """Append one API-provider run (stats from providers.call; cost_usd may be None when unknown)."""
     rec = {"ts": round(time.time()), "listing": listing, "ok": bool(ok), "provider": provider, "models": [model],
            "turns": stats.get("turns"), "duration_s": stats.get("duration_s", 0),
@@ -55,10 +72,10 @@ def record_api(root, listing, ok, provider, model, stats):
     return rec
 
 
-def load(path):
+def load(path: Path | str) -> list[dict[str, Any]]:
     if not Path(path).exists():
         return []
-    out = []
+    out: list[dict[str, Any]] = []
     for line in Path(path).read_text(encoding="utf-8").splitlines():
         try:
             out.append(json.loads(line))
@@ -67,11 +84,11 @@ def load(path):
     return out
 
 
-def tokens(n):
+def tokens(n: float) -> str:
     return "%.1fM" % (n / 1e6) if n >= 1e6 else "%dk" % round(n / 1000) if n >= 1000 else str(n)
 
 
-def line(label, recs):
+def line(label: str, recs: Sequence[dict[str, Any]]) -> str:
     if not recs:
         return "%s: nothing" % label
     ok = [r for r in recs if r.get("ok")]
@@ -90,7 +107,7 @@ def line(label, recs):
     return text
 
 
-def summary(path, now=None):
+def summary(path: Path | str, now: float | None = None) -> str:
     now = now or time.time()
     recs = load(path)
     return "\n".join([
@@ -102,9 +119,9 @@ def summary(path, now=None):
     ])
 
 
-def main():
+def main() -> None:
     print(summary(config.ROOT / "logs" / "usage.jsonl"))
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

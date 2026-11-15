@@ -1,7 +1,10 @@
 """The analysis prompt and the JSON schema the model must answer with."""
 from pathlib import Path
+from typing import Any
 
 from domain import Domain
+
+Listing = dict[str, Any]  # the model's structured result, shaped by schema()
 
 FACT = {
     "type": "object",
@@ -28,7 +31,7 @@ CHECK = {
 }
 
 
-def schema(d: Domain, card: bool = False) -> dict:
+def schema(d: Domain, card: bool = False) -> dict[str, Any]:
     """The JSON shape the model must return: fixed fields plus the domain's specs and categories. With card=True (API
     providers, which can't write files) it also carries the card's text."""
     spec = {
@@ -152,7 +155,7 @@ def prompt(nnn: str, d: Domain, api: bool = False) -> str:
         title_example=', e.g. "%s"' % d.title_example if d.title_example else "")
 
 
-def api_request(root, nnn, d: Domain):
+def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[Path]]:
     """(system, user_text, photo paths) for an API provider. The system prompt holds the instructions and the domain's
     files (the same for every listing, so providers can cache them); the listing goes in the user turn."""
     files = ((["criteria.md"] if d.has_criteria() else []) + ["checklist.md", "card-template.md"]

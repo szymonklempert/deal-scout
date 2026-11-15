@@ -14,6 +14,7 @@ import contact  # noqa: E402
 import errors  # noqa: E402
 import process  # noqa: E402
 import storage  # noqa: E402
+from render import Message  # noqa: E402
 
 
 class NoSellerMessageTests(unittest.TestCase):
@@ -23,7 +24,7 @@ class NoSellerMessageTests(unittest.TestCase):
         out = process.process_listing(root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
                                       runner=FakeRunner(dict(RESULT, seller_message=" ", seller_sms="")))
         self.assertEqual(len(out), 1)
-        self.assertNotIn("buttons", out[0])
+        self.assertEqual(out[0].buttons, ())
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -47,19 +48,21 @@ class ProcessListingTests(unittest.TestCase):
         out = process.process_listing(self.root, 1, settings=settings, domain=CAMPERVAN, model="opus", runner=runner)
         self.assertEqual(len(out), 1)  # the drafts come on a tap, not straight away
         summary = out[0]
-        self.assertTrue(summary["html"])
-        text = summary["text"]
-        self.assertEqual(summary["buttons"], [("💬 WhatsApp message", "msg:1:48600123456"),
-                                              ("✉️ SMS", "sms:1:48600123456")])
+        self.assertTrue(summary.html)
+        text = summary.text
+        self.assertEqual(summary.buttons, (("💬 WhatsApp message", "msg:1:48600123456"),
+                                           ("✉️ SMS", "sms:1:48600123456")))
         message = contact.seller_text(self.root, 1, "msg", "48600123456")[0]
-        self.assertTrue(message["text"].startswith("Dzień dobry"))
-        label, url = message["buttons"][0]
+        self.assertTrue(message.text.startswith("Dzień dobry"))
+        label, url = message.buttons[0]
         self.assertTrue(url.startswith("https://wa.me/48600123456?text=Dzie%C5%84%20dobry"))
         sms = contact.seller_text(self.root, 1, "sms", "48600123456")
-        self.assertEqual(sms, [{"html": True, "text": "<code>Dzień dobry, czy mogę prosić o VIN Hymera?</code>\n\n"
-                                "📱 +48 600 123 456\nTap the text to copy it, then tap the number and choose SMS."}])
-        self.assertIn("No phone number", contact.seller_text(self.root, 1, "sms", "")[0]["text"])
-        self.assertNotIn("buttons", contact.seller_text(self.root, 1, "msg", "")[0])
+        self.assertEqual(sms, [Message(
+            text="<code>Dzień dobry, czy mogę prosić o VIN Hymera?</code>\n\n"
+                 "📱 +48 600 123 456\nTap the text to copy it, then tap the number and choose SMS.",
+            html=True)])
+        self.assertIn("No phone number", contact.seller_text(self.root, 1, "sms", "")[0].text)
+        self.assertEqual(contact.seller_text(self.root, 1, "msg", "")[0].buttons, ())
         self.assertIn("listing asks for whatsapp", text)
         self.assertIn("Seller: Jan Kowalski", text)
         for name in ("001.json", "listings.csv", "INDEX.md"):
@@ -115,23 +118,23 @@ class ProcessListingTests(unittest.TestCase):
         (self.root / "inbox" / "002").mkdir()
         (self.root / "inbox" / "003").mkdir()
         first = process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
-                                        runner=FakeRunner())[0]["text"]
+                                        runner=FakeRunner())[0].text
         self.assertIn("Seller: Jan Kowalski", first)
         self.assertNotIn("also", first)
         process.process_listing(self.root, 2, settings=SETTINGS, domain=CAMPERVAN, model="opus",
                                 runner=FakeRunner(dict(RESULT, seller_name="Anna Nowak")))
         third = process.process_listing(self.root, 3, settings=SETTINGS, domain=CAMPERVAN, model="opus",
-                                        runner=FakeRunner(dict(RESULT, seller_name="jan  KOWALSKI")))[0]["text"]
+                                        runner=FakeRunner(dict(RESULT, seller_name="jan  KOWALSKI")))[0].text
         self.assertIn("Seller: jan  KOWALSKI (also #1)", third)
         self.assertEqual(storage.read_rows(self.root / "listings/listings.csv")[1]["seller"], "Jan Kowalski")
 
     def test_no_phone_on_screenshot(self):
         out = process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
                                       runner=FakeRunner(dict(RESULT, seller_phone=None)))
-        self.assertIn("/phone 1 600123456 adds one", out[0]["text"])
-        self.assertEqual(out[0]["buttons"][0], ("💬 WhatsApp message", "msg:1:"))
+        self.assertIn("/phone 1 600123456 adds one", out[0].text)
+        self.assertEqual(out[0].buttons[0], ("💬 WhatsApp message", "msg:1:"))
         later = contact.contact_for(self.root, 1, "600 123 456")
-        self.assertIn("wa.me/48600123456?text=", later[0]["buttons"][0][1])
+        self.assertIn("wa.me/48600123456?text=", later[0].buttons[0][1])
         self.assertEqual(len(later), 2)
 
     def test_google_sheet_push(self):
@@ -146,7 +149,7 @@ class ProcessListingTests(unittest.TestCase):
             raise RuntimeError("wrong secret")
         text = process.process_listing(self.root, 1, settings=settings, domain=CAMPERVAN, model="opus",
                                        runner=FakeRunner(),
-                                       pusher=broken)[0]["text"]
+                                       pusher=broken)[0].text
         self.assertIn("Google Sheet not updated (wrong secret)", text)
         self.assertTrue((self.root / "listings/listings.csv").exists())
 
@@ -154,10 +157,10 @@ class ProcessListingTests(unittest.TestCase):
         settings = dataclasses.replace(SETTINGS, sheet_link="https://docs.google.com/spreadsheets/d/abc/edit")
         summary = process.process_listing(self.root, 1, settings=settings, domain=CAMPERVAN, model="opus",
                                           runner=FakeRunner())[0]
-        self.assertEqual(summary["buttons"][-1], ("📊 Open sheet", "https://docs.google.com/spreadsheets/d/abc/edit"))
+        self.assertEqual(summary.buttons[-1], ("📊 Open sheet", "https://docs.google.com/spreadsheets/d/abc/edit"))
         summary = process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
                                           runner=FakeRunner())[0]
-        self.assertNotIn("📊 Open sheet", [b[0] for b in summary["buttons"]])
+        self.assertNotIn("📊 Open sheet", [b[0] for b in summary.buttons])
 
     def test_sms_button_errors_when_there_is_no_draft(self):
         process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
@@ -180,18 +183,18 @@ class ProcessListingTests(unittest.TestCase):
 
     def test_seller_not_shown(self):
         text = process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
-                                       runner=FakeRunner(dict(RESULT, seller_name=None)))[0]["text"]
+                                       runner=FakeRunner(dict(RESULT, seller_name=None)))[0].text
         self.assertNotIn("Seller:", text)
 
     def test_empty_criteria_says_so(self):
         text = process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
-                                       runner=FakeRunner(dict(RESULT, criteria_checks=[])))[0]["text"]
+                                       runner=FakeRunner(dict(RESULT, criteria_checks=[])))[0].text
         self.assertIn("Score – (fill in criteria.md)", text)
 
     def test_missing_values_are_reported_not_invented(self):
         data = dict(RESULT, price_pln=None, mileage_km=None)
         text = process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
-                                       runner=FakeRunner(data))[0]["text"]
+                                       runner=FakeRunner(data))[0].text
         self.assertIn("price not shown · Łódź", text)
 
     def test_claude_error_raises(self):

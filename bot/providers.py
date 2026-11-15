@@ -14,8 +14,12 @@ The SDKs are imported only when their provider is chosen, so the bot itself stay
 import base64
 import json
 import time
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any
 
 from config import Settings
+from usage import RunStats
 
 PROVIDERS = ("claude-code", "anthropic", "openai", "openrouter")
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
@@ -25,6 +29,8 @@ FALLBACK_MODELS = {"claude-fable-5-2", "claude-fable-5-1", "claude-opus-5-5", "c
 
 
 class ProviderError(Exception):
+    """The provider is missing, misconfigured or declined the request."""
+
     pass
 
 
@@ -49,9 +55,9 @@ def model_for(provider: str, settings: Settings) -> str:
     return m
 
 
-def image_blocks(paths):
+def image_blocks(paths: Iterable[Path]) -> list[tuple[str, str]]:
     """[(media_type, base64)] for the listing's photos."""
-    out = []
+    out: list[tuple[str, str]] = []
     for p in paths:
         ext = p.suffix.lower().lstrip(".")
         media = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp",
@@ -69,7 +75,9 @@ def price(tokens_in: int, tokens_out: int, price_per_mtok: str) -> float | None:
     return round((tokens_in * pin + tokens_out * pout) / 1e6, 4)
 
 
-def call_anthropic(model, system, user_text, images, schema, effort="medium", client=None):
+def call_anthropic(model: str, system: str, user_text: str, images: Iterable[tuple[str, str]],
+                   schema: dict[str, Any], effort: str = "medium",
+                   client: Any = None) -> tuple[dict[str, Any], RunStats]:
     """Claude API: streaming (long output), structured output, cached system prompt, refusal fallback where offered."""
     if client is None:
         try:
@@ -77,12 +85,13 @@ def call_anthropic(model, system, user_text, images, schema, effort="medium", cl
         except ImportError as exc:
             raise ProviderError("PROVIDER=anthropic needs the SDK: pip install anthropic") from exc
         client = anthropic.Anthropic()  # ANTHROPIC_API_KEY from the environment
-    content = [{"type": "image", "source": {"type": "base64", "media_type": m, "data": d}} for m, d in images]
+    content: list[dict[str, Any]] = [
+        {"type": "image", "source": {"type": "base64", "media_type": m, "data": d}} for m, d in images]
     content.append({"type": "text", "text": user_text})
-    output_config = {"format": {"type": "json_schema", "schema": schema}}
+    output_config: dict[str, Any] = {"format": {"type": "json_schema", "schema": schema}}
     if effort and effort != "none":
         output_config["effort"] = effort
-    kwargs = dict(
+    kwargs: dict[str, Any] = dict(
         model=model,
         max_tokens=32000,
         system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
@@ -111,7 +120,9 @@ def call_anthropic(model, system, user_text, images, schema, effort="medium", cl
                               "duration_s": round(time.time() - t0, 1), "turns": 1}
 
 
-def call_openai(model, system, user_text, images, schema, base_url=None, api_key=None, client=None):
+def call_openai(model: str, system: str, user_text: str, images: Iterable[tuple[str, str]],
+                schema: dict[str, Any], base_url: str | None = None, api_key: str | None = None,
+                client: Any = None) -> tuple[dict[str, Any], RunStats]:
     """OpenAI Chat Completions with a strict JSON schema; also used for OpenRouter (OpenAI-compatible)."""
     if client is None:
         try:
@@ -119,7 +130,8 @@ def call_openai(model, system, user_text, images, schema, base_url=None, api_key
         except ImportError as exc:
             raise ProviderError("this provider needs the SDK: pip install openai") from exc
         client = openai.OpenAI(base_url=base_url, api_key=api_key) if base_url else openai.OpenAI()
-    content = [{"type": "image_url", "image_url": {"url": "data:%s;base64,%s" % (m, d)}} for m, d in images]
+    content: list[dict[str, Any]] = [
+        {"type": "image_url", "image_url": {"url": "data:%s;base64,%s" % (m, d)}} for m, d in images]
     content.append({"type": "text", "text": user_text})
     t0 = time.time()
     resp = client.chat.completions.create(
@@ -135,15 +147,16 @@ def call_openai(model, system, user_text, images, schema, base_url=None, api_key
         raise ProviderError("the answer was cut off (finish_reason=length)")
     u = resp.usage
     details = getattr(u, "prompt_tokens_details", None)
-    stats = {"model": getattr(resp, "model", model), "input_tokens": u.prompt_tokens or 0,
-             "cached_tokens": (getattr(details, "cached_tokens", 0) or 0) if details else 0,
-             "output_tokens": u.completion_tokens or 0, "duration_s": round(time.time() - t0, 1), "turns": 1}
+    stats: RunStats = {
+        "model": getattr(resp, "model", model), "input_tokens": u.prompt_tokens or 0,
+        "cached_tokens": (getattr(details, "cached_tokens", 0) or 0) if details else 0,
+        "output_tokens": u.completion_tokens or 0, "duration_s": round(time.time() - t0, 1), "turns": 1}
     if getattr(u, "cost", None) is not None:  # OpenRouter reports the cost of the call
         stats["cost_usd"] = float(u.cost)
     return parse_json(choice.message.content or ""), stats
 
 
-def parse_json(text):
+def parse_json(text: str) -> dict[str, Any]:
     try:
         data = json.loads(text)
     except ValueError as exc:
@@ -153,7 +166,8 @@ def parse_json(text):
     return data
 
 
-def call(provider, model, system, user_text, images, schema, settings: Settings, client=None):
+def call(provider: str, model: str, system: str, user_text: str, images: Iterable[tuple[str, str]],
+         schema: dict[str, Any], settings: Settings, client: Any = None) -> tuple[dict[str, Any], RunStats]:
     if provider == "anthropic":
         return call_anthropic(model, system, user_text, images, schema, effort=settings.effort, client=client)
     if provider == "openai":

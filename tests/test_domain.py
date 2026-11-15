@@ -64,8 +64,8 @@ class DomainTests(unittest.TestCase):
     def test_full_run_for_a_tv(self):
         out = process.process_listing(self.root, 1, settings=config.Settings(), domain=self.tv, model="opus",
                                       runner=FakeRunner(RESULT))
-        self.assertIn("⚪ Burn-in: <i>not shown</i>", out[0]["text"])
-        self.assertIn("🟢 Panel: OLED · 9/10", out[0]["text"])
+        self.assertIn("⚪ Burn-in: <i>not shown</i>", out[0].text)
+        self.assertIn("🟢 Panel: OLED · 9/10", out[0].text)
         row = storage.read_rows(self.root / "listings/listings.csv")[1]
         self.assertEqual((row["panel"], row["Panel"], row["Size"]), ("OLED", "OLED (9/10)", "not shown"))
         self.assertNotIn("model_family", row)

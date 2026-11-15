@@ -2,14 +2,16 @@
 import json
 import logging
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 
 import providers
 import usage
 from config import Settings
 from domain import Domain
 from errors import ProcessError
-from prompts import api_request, prompt, schema
+from prompts import Listing, api_request, prompt, schema
 
 log = logging.getLogger("dealscout")
 
@@ -29,7 +31,9 @@ def claude_command(nnn: str, model: str, d: Domain, claude_bin: str = "claude") 
     ]
 
 
-def run_claude(root, nnn, model, d: Domain, settings: Settings, runner=subprocess.run, timeout=900):
+def run_claude(root: Path | str, nnn: str, model: str, d: Domain, settings: Settings,
+               runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+               timeout: int = 900) -> Listing:
     try:
         env = dict(settings.claude_env)  # without the bot token and Anthropic keys, see config.child_env
         command = claude_command(nnn, model, d, claude_bin=settings.claude_bin)
@@ -58,10 +62,12 @@ def run_claude(root, nnn, model, d: Domain, settings: Settings, runner=subproces
     if not ok:
         log.error("#%s claude error: %s", nnn, str(out.get("result") or out.get("subtype"))[:2000])
         raise ProcessError("Claude failed: %s" % str(out.get("result") or out.get("subtype"))[:300])
-    return out["structured_output"]
+    return cast(Listing, out["structured_output"])
 
 
-def analyse(root, nnn, d: Domain, settings: Settings, runner=subprocess.run, client=None):
+def analyse(root: Path | str, nnn: str, d: Domain, settings: Settings,
+            runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+            client: Any = None) -> Listing:
     """Run the analysis with PROVIDER from .env. API providers return the card's text, written here."""
     try:
         provider = providers.name(settings)

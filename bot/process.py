@@ -15,7 +15,9 @@ import json
 import logging
 import subprocess
 import sys
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 import domain as domains
 import market
@@ -25,15 +27,16 @@ from config import ROOT, Settings, load_env
 from contact import normalise_phone, scrub_phone
 from domain import Domain
 from errors import ProcessError
-from render import esc, plain_text, summary_buttons, summary_text
+from render import Message, esc, plain_text, summary_buttons, summary_text
 from storage import csv_fields, csv_row, read_rows, same_seller, write_index, write_rows
 
 log = logging.getLogger("dealscout")
 log.addHandler(logging.NullHandler())  # quiet unless setup_logging() adds real handlers
 
 
-def process_listing(root, n, *, settings: Settings, domain: Domain, model=None, runner=subprocess.run, pusher=None,
-                   client=None):
+def process_listing(root: Path | str, n: int, *, settings: Settings, domain: Domain, model: str | None = None,
+                    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+                    pusher: Callable[..., None] | None = None, client: Any = None) -> list[Message]:
     root = Path(root)
     nnn = "%03d" % n
     if not (root / "inbox" / nnn).is_dir():
@@ -67,14 +70,11 @@ def process_listing(root, n, *, settings: Settings, domain: Domain, model=None, 
         except Exception as exc:  # the CSV is saved either way; say so and carry on
             log.error("#%s Google Sheet not updated: %s", nnn, exc)
             summary += "\n⚠️ Google Sheet not updated (%s). Retry: python3 bot/sheet.py" % esc(exc)
-    item = {"text": summary[:4000], "html": True}
     buttons = summary_buttons(n, data, phone, sheet.link(settings))
-    if buttons:
-        item["buttons"] = buttons
-    return [item]
+    return [Message(text=summary[:4000], html=True, buttons=tuple(buttons))]
 
 
-def main(argv):
+def main(argv: Sequence[str]) -> None:
     if len(argv) != 2 or not argv[1].isdigit():
         sys.exit("usage: python3 bot/process.py <listing number>")
     load_env(ROOT / ".env")
@@ -90,7 +90,7 @@ def main(argv):
         sys.exit(str(exc))
     try:
         out = process_listing(root, int(argv[1]), settings=settings, domain=d)
-        print("\n\n-----\n".join(plain_text(m["text"]) + "".join("\n[%s: %s]" % b for b in m.get("buttons", []))
+        print("\n\n-----\n".join(plain_text(m.text) + "".join("\n[%s: %s]" % b for b in m.buttons)
                                    for m in out))
     except ProcessError as exc:
         sys.exit(str(exc))

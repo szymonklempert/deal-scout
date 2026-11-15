@@ -8,10 +8,13 @@ Configuration: GOOGLE_SHEET_URL (the web app URL) and GOOGLE_SHEET_SECRET in .en
 import json
 import sys
 import urllib.request
+from collections.abc import Callable, Iterable
+from pathlib import Path
+from typing import Any
 
 import domain
 from config import ROOT, Settings, load_env
-from storage import csv_fields, read_rows
+from storage import Row, csv_fields, read_rows
 
 
 def enabled(settings: Settings) -> bool:
@@ -25,7 +28,7 @@ def link(settings: Settings) -> str | None:
     return url if url.startswith("https://docs.google.com/spreadsheets/") else None
 
 
-def as_value(value):
+def as_value(value: Any) -> int | float | str:
     """CSV text -> number where it is one, so the sheet can sort and sum."""
     if isinstance(value, (int, float)) or value is None:
         return "" if value is None else value
@@ -38,7 +41,8 @@ def as_value(value):
     return text
 
 
-def push(row, fields, settings: Settings, opener=urllib.request.urlopen):
+def push(row: Row, fields: Iterable[str], settings: Settings, opener: Callable[..., Any] = urllib.request.urlopen,
+         ) -> None:
     """Add or update one listing (matched by number). The script keeps a status you changed in the sheet."""
     body = {
         "secret": settings.sheet_secret,
@@ -59,7 +63,8 @@ def push(row, fields, settings: Settings, opener=urllib.request.urlopen):
         raise RuntimeError(out.get("error") or "the sheet script reported an error")
 
 
-def push_all(csv_path, fields: list[str], settings: Settings, opener=urllib.request.urlopen):
+def push_all(csv_path: Path, fields: list[str], settings: Settings,
+             opener: Callable[..., Any] = urllib.request.urlopen) -> int:
     """Copy every row of listings.csv to the sheet, in number order; returns how many were copied."""
     rows = read_rows(csv_path)
     for n in sorted(rows):
@@ -68,7 +73,7 @@ def push_all(csv_path, fields: list[str], settings: Settings, opener=urllib.requ
     return len(rows)
 
 
-def main():
+def main() -> None:
     load_env(ROOT / ".env")
     settings = Settings.from_env()
     if not enabled(settings):

@@ -25,6 +25,7 @@ import config  # noqa: E402
 import contact  # noqa: E402
 import domain  # noqa: E402
 import process  # noqa: E402
+from render import Message  # noqa: E402
 
 GOLDEN = HERE / "golden"
 FIXTURES = HERE / "fixtures"
@@ -65,7 +66,7 @@ class Recorder:
         self.sent = []
 
     def send_message(self, chat_id, text, buttons=None, html=False):
-        self.sent.append({"html": html, "text": text, "buttons": [list(b) for b in buttons or []]})
+        self.sent.append(Message(text=text, html=html, buttons=tuple((label, value) for label, value in buttons or [])))
 
     def answer_callback(self, callback_id):
         pass
@@ -85,8 +86,8 @@ def message_text(items):
         if isinstance(m, str):
             out.append(m)
             continue
-        block = ("[html]\n" if m.get("html") else "") + m["text"]
-        for label, value in m.get("buttons") or []:
+        block = ("[html]\n" if m.html else "") + m.text
+        for label, value in m.buttons:
             block += "\n[%s] %s" % (label, value)
         out.append(block)
     return "\n\n=====\n\n".join(out) + "\n"

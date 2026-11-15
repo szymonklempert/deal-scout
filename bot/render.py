@@ -1,25 +1,42 @@
 """Format a listing's summary as Telegram HTML."""
 import html
 import re
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any
 
+from prompts import Listing
 from scoring import ordered_specs
+from storage import Row
+
+Button = tuple[str, str]  # (label, an https:// URL or callback data such as "msg:7:48600123456")
 
 
-def esc(text):
+@dataclass(frozen=True)
+class Message:
+    """One Telegram message the bot sends: text, optional HTML formatting and buttons."""
+
+    text: str
+    html: bool = False
+    buttons: tuple[Button, ...] = ()
+    fallback_url: str | None = None  # where to paste the text if Telegram refuses the buttons
+
+
+def esc(text: object) -> str:
     return html.escape(str(text), quote=False)
 
 
-def dot(score):
+def dot(score: float | None) -> str:
     if score is None:
         return "⚪"
     return "🟢" if score >= 7 else "🟡" if score >= 4 else "🔴"
 
 
-def fmt_int(v):
+def fmt_int(v: Any) -> str:
     return "{:,}".format(int(v)).replace(",", " ")
 
 
-def contact_line(n, data, phone):
+def contact_line(n: int, data: Listing, phone: str | None) -> str:
     pref = data.get("contact_preference") or "not stated"
     how = "listing asks for %s" % pref if pref != "not stated" else "no contact preference"
     if phone:
@@ -27,10 +44,10 @@ def contact_line(n, data, phone):
     return "💬 %s · tap below for the message; no phone on the screenshots (/phone %d 600123456 adds one)" % (how, n)
 
 
-def summary_buttons(n, data, phone, sheet_link: str | None):
+def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | None) -> list[Button]:
     """Buttons under the summary. The message buttons are taps the bot answers (callback data); the phone number
     rides along inside the button, so it is never written to a file."""
-    buttons = []
+    buttons: list[Button] = []
     if (data.get("seller_message") or "").strip():
         buttons.append(("💬 WhatsApp message", "msg:%d:%s" % (n, phone or "")))
     if (data.get("seller_sms") or "").strip():
@@ -40,7 +57,8 @@ def summary_buttons(n, data, phone, sheet_link: str | None):
     return buttons
 
 
-def summary_text(n, data, row, specs: list[str], others=(), phone=None):
+def summary_text(n: int, data: Listing, row: Row, specs: list[str], others: Sequence[int] = (),
+                 phone: str | None = None) -> str:
     """Telegram HTML: header, the fixed spec list (one line each, with a score), then flags and contact."""
     price = "<b>%s PLN</b>" % fmt_int(data["price_pln"]) if data.get("price_pln") is not None else "price not shown"
     where = [price] + [esc(data[k]) for k in ("location", "source") if data.get(k)]

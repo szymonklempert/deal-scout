@@ -5,6 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bot"))
 import bot as botmod  # noqa: E402
+from render import Message  # noqa: E402
 
 
 class FakeAPI:
@@ -183,23 +184,23 @@ class BotTests(unittest.TestCase):
 
     def test_whatsapp_button_is_sent(self):
         bot, _ = self.analysing_bot()
-        bot.send({"text": "Dzień dobry", "buttons": [("Send on WhatsApp", "https://wa.me/48600123456?text=x")],
-                  "fallback_url": "https://wa.me/48600123456"})
+        bot.send(Message("Dzień dobry", buttons=(("Send on WhatsApp", "https://wa.me/48600123456?text=x"),),
+                         fallback_url="https://wa.me/48600123456"))
         self.assertEqual(self.api.sent, ["Dzień dobry"])
         self.assertEqual(self.api.buttons[0][0][1], "https://wa.me/48600123456?text=x")
 
     def test_refused_button_falls_back_to_plain_link(self):
         self.api.refuse_buttons = True
         bot, _ = self.analysing_bot()
-        bot.send({"text": "Dzień dobry", "buttons": [("Send on WhatsApp", "https://wa.me/1?text=x")],
-                  "fallback_url": "https://wa.me/48600123456"})
+        bot.send(Message("Dzień dobry", buttons=(("Send on WhatsApp", "https://wa.me/1?text=x"),),
+                         fallback_url="https://wa.me/48600123456"))
         self.assertEqual(self.api.sent[0], "Dzień dobry")
         self.assertIn("https://wa.me/48600123456", self.api.sent[1])
 
     def test_refused_html_falls_back_to_plain_text(self):
         self.api.refuse_buttons = True
         bot, _ = self.analysing_bot()
-        bot.send({"text": "<b>#1 Ducato</b> &amp; more", "html": True})
+        bot.send(Message("<b>#1 Ducato</b> &amp; more", html=True))
         self.assertEqual(self.api.sent, ["#1 Ducato & more"])
 
     def test_status_reports_stale_code(self):
@@ -223,7 +224,7 @@ class BotTests(unittest.TestCase):
 
         def seller_text(n, kind, phone):
             calls.append((n, kind, phone))
-            return [{"text": "%s for #%d" % (kind, n)}]
+            return [Message("%s for #%d" % (kind, n))]
         bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, seller_text=seller_text)
         return bot, calls
 
@@ -249,8 +250,8 @@ class BotTests(unittest.TestCase):
     def test_callback_buttons_are_not_listed_in_plain_fallback(self):
         self.api.refuse_buttons = True
         bot, _ = self.analysing_bot()
-        bot.send({"text": "<b>#1</b>", "html": True, "buttons": [("💬 WhatsApp message", "msg:1:"),
-                                                                ("📊 Open sheet", "https://docs.google.com/x")]})
+        bot.send(Message("<b>#1</b>", html=True, buttons=(("💬 WhatsApp message", "msg:1:"),
+                                                          ("📊 Open sheet", "https://docs.google.com/x"))))
         self.assertEqual(self.api.sent, ["#1", "📊 Open sheet: https://docs.google.com/x"])
 
     def test_usage_command(self):
@@ -267,7 +268,7 @@ class BotTests(unittest.TestCase):
     def test_refused_summary_button_falls_back_to_plain_link(self):
         self.api.refuse_buttons = True
         bot, _ = self.analysing_bot()
-        bot.send({"text": "<b>#1</b>", "html": True, "buttons": [("📊 Open sheet", "https://docs.google.com/x")]})
+        bot.send(Message("<b>#1</b>", html=True, buttons=(("📊 Open sheet", "https://docs.google.com/x"),)))
         self.assertEqual(self.api.sent, ["#1", "📊 Open sheet: https://docs.google.com/x"])
 
     def test_phone_command(self):
@@ -275,7 +276,7 @@ class BotTests(unittest.TestCase):
 
         def contact(n, phone):
             calls.append((n, phone))
-            return [{"text": "Dzień dobry", "buttons": [("Send on WhatsApp", "https://wa.me/48600123456?text=x")]}]
+            return [Message("Dzień dobry", buttons=(("Send on WhatsApp", "https://wa.me/48600123456?text=x"),))]
         bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, contact=contact)
         bot.handle_update(msg(text="/phone 7 600 123 456"))
         self.assertEqual(calls, [(7, "600 123 456")])
