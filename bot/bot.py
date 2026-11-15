@@ -5,6 +5,7 @@ You send screenshots, links and notes to a private Telegram bot. It saves them i
 listing) and answers with a short confirmation. Only the Telegram user in TELEGRAM_ALLOWED_USER_ID is served.
 Standard library only. Configuration comes from the environment or a .env file in the project root.
 """
+import functools
 import hashlib
 import json
 import logging
@@ -22,7 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
-import contact as contacts
+import contact
 import domain
 import process
 import providers
@@ -67,6 +68,17 @@ HELP = (
     "/usage  how much Claude the analysis used (7 days, 30 days, all time)\n"
     "/help  this message"
 )
+
+
+def photo_ids(msg: dict[str, Any]) -> list[str]:
+    """File ids of the images in a message: the largest photo size, and a document that is an image."""
+    ids: list[str] = []
+    if msg.get("photo"):
+        ids.append(msg["photo"][-1]["file_id"])  # largest size
+    doc = msg.get("document")
+    if doc and str(doc.get("mime_type", "")).startswith("image/"):
+        ids.append(doc["file_id"])
+    return ids
 
 
 class TelegramAPI:
@@ -251,18 +263,17 @@ class Bot:
             words = text.split()
             self.handle_command(chat, words[0].split("@")[0].lower(), words[1:])
             return
-        photo_ids: list[str] = []
-        if msg.get("photo"):
-            photo_ids.append(msg["photo"][-1]["file_id"])  # largest size
-        doc = msg.get("document")
-        if doc and str(doc.get("mime_type", "")).startswith("image/"):
-            photo_ids.append(doc["file_id"])
-        if not photo_ids and not text:
+        ids = photo_ids(msg)
+        if not ids and not text:
             self.reply(chat, "I can save photos, screenshots, links and text.")
             return
+        self.save_message(msg, text, ids)
+
+    def save_message(self, msg: dict[str, Any], text: str, ids: Sequence[str]) -> None:
+        """Save a message's photos, note and links into its listing and queue the "saved" confirmation."""
         n, is_new = self.current_listing(msg.get("media_group_id"))
-        log.info("#%d: saved %d photo(s)%s", n, len(photo_ids), " and text" if text else "")
-        for file_id in photo_ids:
+        log.info("#%d: saved %d photo(s)%s", n, len(ids), " and text" if text else "")
+        for file_id in ids:
             self.inbox.add_photo(n, self.api.get_file_bytes(file_id))
         if text:
             self.inbox.add_note(n, text, msg.get("date") or self.clock())
@@ -282,42 +293,60 @@ class Bot:
             self.reply(self.allowed, "#%d: %d photo(s), %d link(s) saved." % (n, photos, len(links)))
 
     def handle_command(self, chat: int | None, cmd: str, args: Sequence[str] = ()) -> None:
+        """Answer a slash command from the owner."""
         self.flush_ack(force=True)  # confirm what was saved before answering (e.g. before /done starts)
-        if cmd in ("/start", "/help"):
-            self.reply(chat, HELP)
-        elif cmd == "/new":
-            self.state["current"] = None
-            self.reply(chat, "Next message starts a new listing.")
-        elif cmd == "/done":
-            self.done(chat, args)
-        elif cmd == "/phone":
-            self.phone(chat, args)
-        elif cmd == "/status":
-            self.reply(chat, self.status())
-        elif cmd == "/usage":
-            self.reply(chat, usage.summary(self.root / "logs" / "usage.jsonl"))
-        elif cmd == "/sheet":
-            if self.sheet_link:
-                self.send(Message("Your listings sheet:", buttons=(("📊 Open sheet", self.sheet_link),)))
-            else:
-                self.reply(chat, "No sheet link yet: put the spreadsheet's address in .env as GOOGLE_SHEET_LINK "
-                                 "and restart the bot.")
-        elif cmd == "/market":
-            path = self.root / "listings" / "market.md"
-            self.reply(chat, path.read_text(encoding="utf-8")[:4000] if path.exists()
-                       else "No market data yet: it is built after the first analysis.")
-        elif cmd == "/list":
-            nums = self.inbox.latest()
-            if not nums:
-                self.reply(chat, "Nothing saved yet.")
-                return
-            lines = []
-            for n in nums:
-                photos, links = self.inbox.summary(n)
-                lines.append("#%d  %d photo(s)  %s" % (n, photos, links[0] if links else "no link"))
-            self.reply(chat, "\n".join(lines))
-        else:
+        handlers: dict[str, Callable[[int | None, Sequence[str]], None]] = {
+            "/start": self.cmd_help, "/help": self.cmd_help, "/new": self.cmd_new, "/done": self.done,
+            "/phone": self.phone, "/status": self.cmd_status, "/usage": self.cmd_usage, "/sheet": self.cmd_sheet,
+            "/market": self.cmd_market, "/list": self.cmd_list}
+        handler = handlers.get(cmd)
+        if handler is None:
             self.reply(chat, "Unknown command. /help")
+            return
+        handler(chat, args)
+
+    def cmd_help(self, chat: int | None, args: Sequence[str]) -> None:
+        """Send the list of commands."""
+        self.reply(chat, HELP)
+
+    def cmd_new(self, chat: int | None, args: Sequence[str]) -> None:
+        """Make the next message start a new listing."""
+        self.state["current"] = None
+        self.reply(chat, "Next message starts a new listing.")
+
+    def cmd_status(self, chat: int | None, args: Sequence[str]) -> None:
+        """Report the bot's version and queue."""
+        self.reply(chat, self.status())
+
+    def cmd_usage(self, chat: int | None, args: Sequence[str]) -> None:
+        """Report how much Claude the analysis used."""
+        self.reply(chat, usage.summary(self.root / "logs" / "usage.jsonl"))
+
+    def cmd_sheet(self, chat: int | None, args: Sequence[str]) -> None:
+        """Send the link to the Google Sheet."""
+        if self.sheet_link:
+            self.send(Message("Your listings sheet:", buttons=(("📊 Open sheet", self.sheet_link),)))
+        else:
+            self.reply(chat, "No sheet link yet: put the spreadsheet's address in .env as GOOGLE_SHEET_LINK "
+                             "and restart the bot.")
+
+    def cmd_market(self, chat: int | None, args: Sequence[str]) -> None:
+        """Send market.md, cut to Telegram's size limit."""
+        path = self.root / "listings" / "market.md"
+        self.reply(chat, path.read_text(encoding="utf-8")[:4000] if path.exists()
+                   else "No market data yet: it is built after the first analysis.")
+
+    def cmd_list(self, chat: int | None, args: Sequence[str]) -> None:
+        """List the latest inbox folders with their photo and link counts."""
+        nums = self.inbox.latest()
+        if not nums:
+            self.reply(chat, "Nothing saved yet.")
+            return
+        lines = []
+        for n in nums:
+            photos, links = self.inbox.summary(n)
+            lines.append("#%d  %d photo(s)  %s" % (n, photos, links[0] if links else "no link"))
+        self.reply(chat, "\n".join(lines))
 
     def done(self, chat: int | None, args: Sequence[str]) -> None:
         if self.processor is None:
@@ -393,19 +422,23 @@ class Bot:
         try:
             self.api.send_message(self.allowed, item.text, list(item.buttons) or None, html=item.html)
         except RuntimeError as exc:
-            if not (item.buttons or item.html):
-                raise
-            # Telegram refused the formatting or a very long button link: send plain text instead
-            log.warning("Telegram refused a formatted message (%s); sending plain text", exc)
-            plain = item.text
-            if item.html:
-                plain = render.plain_text(plain)
-            self.api.send_message(self.allowed, plain)
-            if item.fallback_url:
-                self.api.send_message(self.allowed, "Open %s and paste the message above." % item.fallback_url)
-            elif any(v.startswith("https://") for _, v in item.buttons):
-                self.api.send_message(self.allowed, "\n".join("%s: %s" % b for b in item.buttons
-                                                               if b[1].startswith("https://")))
+            self.send_plain_fallback(item, exc)
+
+    def send_plain_fallback(self, item: Message, exc: RuntimeError) -> None:
+        """Resend a message Telegram refused as plain text, with its buttons' links as text. Re-raise if it had none."""
+        if not (item.buttons or item.html):
+            raise exc
+        # Telegram refused the formatting or a very long button link: send plain text instead
+        log.warning("Telegram refused a formatted message (%s); sending plain text", exc)
+        plain = item.text
+        if item.html:
+            plain = render.plain_text(plain)
+        self.api.send_message(self.allowed, plain)
+        if item.fallback_url:
+            self.api.send_message(self.allowed, "Open %s and paste the message above." % item.fallback_url)
+        elif any(v.startswith("https://") for _, v in item.buttons):
+            self.api.send_message(self.allowed, "\n".join("%s: %s" % b for b in item.buttons
+                                                           if b[1].startswith("https://")))
 
     def queue_analysis(self, n: int) -> None:
         self.jobs.put(n)
@@ -480,19 +513,12 @@ def main() -> None:
     except domain.DomainError as exc:
         sys.exit(str(exc))
 
-    def processor(n: int) -> list[Message]:
-        return process.process_listing(ROOT, n, settings=settings, domain=d)
-
-    def contact(n: int, phone: str) -> list[Message]:
-        return contacts.contact_for(ROOT, n, phone)
-
-    def seller_text(n: int, kind: str, phone: str | None) -> list[Message]:
-        return contacts.seller_text(ROOT, n, kind, phone)
-
+    processor = functools.partial(process.process_listing, ROOT, settings=settings, domain=d)
     analyse = mode in ("manual", "auto")
     bot = Bot(TelegramAPI(settings.telegram_token), ROOT, settings.allowed_user_id, settings.group_window_seconds,
-              processor=processor if analyse else None, auto_analyse=(mode == "auto"), contact=contact,
-              sheet_link=sheet.link(settings), seller_text=seller_text)
+              processor=processor if analyse else None, auto_analyse=(mode == "auto"),
+              contact=functools.partial(contact.contact_for, ROOT), sheet_link=sheet.link(settings),
+              seller_text=functools.partial(contact.seller_text, ROOT))
     try:
         provider = providers.name(settings)
         engine = "%s, model %s" % (provider, providers.model_for(provider, settings))
