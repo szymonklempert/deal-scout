@@ -34,3 +34,8 @@ jobs:
       - name: Coverage summary
         if: matrix.python-version == '3.14'
         run: uv run coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+      - name: Build the package and check what it ships
+        if: matrix.python-version == '3.14'
+        run: |
+          uv build
+          uv run python scripts/check_dist.py
