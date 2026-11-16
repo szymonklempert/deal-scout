@@ -8,6 +8,21 @@ API, OpenAI or OpenRouter.
 What it reviews comes from a **domain**, a folder of plain files. The first domain, `domains/campervan/`, is for
 buying a used campervan in Poland. A convertible or a TV would be another folder, with no code changes.
 
+<table>
+  <tr>
+    <td><img src="docs/images/telegram-1-listing.jpg" width="260" alt="Screenshots of a listing sent to the bot, the bot confirming them, and the start of the scored summary"></td>
+    <td><img src="docs/images/telegram-2-summary.jpg" width="260" alt="The summary: the verdict and one line per spec, each with a value and a score"></td>
+    <td><img src="docs/images/telegram-3-buttons.jpg" width="260" alt="The red flags and the buttons for the seller message, the seller's reply, feedback and the sheet"></td>
+  </tr>
+  <tr>
+    <td align="center">Forward the listing's screenshots</td>
+    <td align="center">A scored summary, one line per spec</td>
+    <td align="center">Red flags, then one tap for the seller message</td>
+  </tr>
+</table>
+
+<sub>The real bot on a real listing; the seller's surname and phone numbers are hidden.</sub>
+
 ## What you get for each listing
 
 ```
