@@ -161,26 +161,36 @@ Then return the structured result:
 Put the seller's name only in the card's seller line and in seller_name. Never write phone numbers into any file."""
 
 
-def prompt(nnn: str, d: Domain, api: bool = False) -> str:
-    """Return the instructions; Claude Code reads the files itself, for API providers they are appended (api_files)."""
+def template_fields(nnn: str, d: Domain) -> dict[str, str]:
+    """Return the named fields the intros and RULES are formatted with."""
     cats = "".join(
         f"- {key}: one of the allowed values{': ' + cat['help'] if cat.get('help') else ''}; "
         '"unknown" when the listing doesn\'t let you tell.\n'
         for key, cat in d.categories.items()
     )
-    return ((INTRO_API if api else INTRO_CLAUDE_CODE) + RULES).format(
-        item=d.item,
-        unit=d.unit,
-        nnn=nnn,
-        ddir=d.rel,
-        language=d.seller_language,
-        criteria="criteria.md, " if d.has_criteria() else "",
-        refs="".join(f", {f} ({what})" for f, what in d.reference_files.items()),
-        instructions=d.instructions or "(none)",
-        specs=", ".join(d.specs),
-        categories=cats,
-        title_example=f', e.g. "{d.title_example}"' if d.title_example else "",
-    )
+    return {
+        "item": d.item,
+        "unit": d.unit,
+        "nnn": nnn,
+        "ddir": d.rel,
+        "language": d.seller_language,
+        "criteria": "criteria.md, " if d.has_criteria() else "",
+        "refs": "".join(f", {f} ({what})" for f, what in d.reference_files.items()),
+        "instructions": d.instructions or "(none)",
+        "specs": ", ".join(d.specs),
+        "categories": cats,
+        "title_example": f', e.g. "{d.title_example}"' if d.title_example else "",
+    }
+
+
+def rules(d: Domain) -> str:
+    """Return the rules and the shape of the structured result: the part every way of asking the model shares."""
+    return RULES.format(**template_fields("", d))
+
+
+def prompt(nnn: str, d: Domain, api: bool = False) -> str:
+    """Return the instructions; Claude Code reads the files itself, for API providers they are appended (api_files)."""
+    return ((INTRO_API if api else INTRO_CLAUDE_CODE) + RULES).format(**template_fields(nnn, d))
 
 
 def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[Path]]:

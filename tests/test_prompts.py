@@ -32,6 +32,14 @@ class SchemaTests(unittest.TestCase):
         walk(prompts.schema(CAMPERVAN, card=True))
 
 
+class RulesTests(unittest.TestCase):
+    def test_the_shared_rules_are_the_tail_of_every_prompt(self):
+        rules = prompts.rules(CAMPERVAN)
+        self.assertIn(CAMPERVAN.specs[0], rules)
+        for api in (False, True):
+            self.assertTrue(prompts.prompt("001", CAMPERVAN, api=api).endswith(rules))
+
+
 class ApiRequestTests(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
