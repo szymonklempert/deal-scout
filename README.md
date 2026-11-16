@@ -2,8 +2,11 @@
 
 [![CI](https://github.com/szymonklempert/deal-scout/actions/workflows/ci.yml/badge.svg)](https://github.com/szymonklempert/deal-scout/actions/workflows/ci.yml) ![coverage](https://img.shields.io/badge/coverage-91%25-brightgreen) ![Python](https://img.shields.io/badge/python-3.12%2B-blue) [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Your private Telegram assistant for buying second-hand. Forward a listing's screenshots and get back a scored
-review, the red flags, and a ready-to-send message for the seller.
+**Turns the chaos of second-hand listings scattered across marketplaces and groups (looking at you, Facebook) into
+structured, scored, comparable data.**
+
+Forward a listing's screenshots to a private Telegram bot and get back a scored review, the red flags, and a
+ready-to-send message for the seller.
 
 <table>
   <tr>
