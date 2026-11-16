@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from deal_scout import providers, usage
-from deal_scout.config import Settings
+from deal_scout.config import PACKAGE_DIR, Settings
 from deal_scout.domain import Domain
 from deal_scout.errors import ProcessError
 from deal_scout.prompts import Listing, api_request, prompt, schema
@@ -53,6 +53,9 @@ def run_claude(
     timeout: int = 900,
 ) -> Listing:
     """Run the headless Claude Code command and return the structured card it produced."""
+    if d.dir.resolve().is_relative_to((PACKAGE_DIR / "_domains").resolve()):
+        # Claude Code runs in the data folder and reads the domain from there; the package's built-in copy is invisible
+        raise ProcessError(f"The {d.name} domain's files are not in the data folder yet: run `deal-scout init` first.")
     try:
         env = dict(settings.claude_env)  # without the bot token and Anthropic keys, see config.child_env
         command = claude_command(nnn, model, d, claude_bin=settings.claude_bin)

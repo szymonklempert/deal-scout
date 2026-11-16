@@ -32,5 +32,25 @@ class CommandTests(unittest.TestCase):
         self.assertIn("Do not ask about a viewing, a test drive", cmd[2])
 
 
+class DomainInDataFolderTests(unittest.TestCase):
+    def test_a_built_in_domain_copy_stops_the_run(self):
+        import dataclasses
+        import tempfile
+        from pathlib import Path
+
+        from fakes import CAMPERVAN, SETTINGS, FakeRunner
+
+        from deal_scout import analysis
+        from deal_scout.config import PACKAGE_DIR
+        from deal_scout.errors import ProcessError
+
+        built_in = dataclasses.replace(CAMPERVAN, dir=PACKAGE_DIR / "_domains" / "campervan")
+        with tempfile.TemporaryDirectory() as home:
+            runner = FakeRunner()
+            with self.assertRaisesRegex(ProcessError, "deal-scout init"):
+                analysis.run_claude(Path(home), "001", "opus", built_in, SETTINGS, runner=runner)
+            self.assertEqual(runner.calls, [])  # Claude Code was never started
+
+
 if __name__ == "__main__":
     unittest.main()
