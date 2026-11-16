@@ -55,13 +55,13 @@ anything.
 - **Claude settings:** `.claude/settings.json` (shared) blocks reading `.env` and `.state.json`, fetching listing
   sites, starting the live bot and force-pushing, and asks before pushes, analyses and sheet copies. Personal
   overrides go in `.claude/settings.local.json` (git-ignored). Keep it compatible with the headless analysis run.
-- **Standards:** `docs/CODING_STANDARDS.md` is binding for every code change. Run ruff, mypy and the tests before
-  committing (README, "Development").
+- **Standards:** `docs/CODING_STANDARDS.md` is binding for every code change. Run `make check` (ruff lint and format
+  check, mypy, tests) before committing (README, "Development"); pre-commit runs the same on commit.
 - **The bot:** `deal_scout/bot.py` is the conversation logic of a standard-library Python long-polling bot (outgoing
   connections only); `telegram.py` is the API transport, `inbox.py` the inbox files, and `__main__.py` the start-up
   wiring: start it with `python3 -m deal_scout`. Config is in
   `.env` (see `.env.example`).
-- **Tests:** `python3 -m unittest discover -s tests`. Shared fakes are in `tests/fakes.py`. `tests/test_golden.py`
+- **Tests:** `uv run pytest` (plain `unittest` classes; `make check` runs lint, format check, types and tests). Shared fakes are in `tests/fakes.py`. `tests/test_golden.py`
   freezes every output the owner, the sheet or the model sees; if a change to one is intended, regenerate with
   `GOLDEN_UPDATE=1` and review the diff of `tests/golden/`. Deployment: `deploy/README.md`.
 - **Changing the bot:** keep it standard library only, keep the allowlist behaviour (strangers get no answer), and

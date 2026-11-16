@@ -1,5 +1,7 @@
 # deal-scout
 
+[![CI](https://github.com/szymonklempert/deal-scout/actions/workflows/ci.yml/badge.svg)](https://github.com/szymonklempert/deal-scout/actions/workflows/ci.yml) ![coverage](https://img.shields.io/badge/coverage-91%25-brightgreen) ![Python](https://img.shields.io/badge/python-3.10%2B-blue) [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Your private Telegram assistant for buying second-hand. Forward a listing's screenshots and get back a scored
 review, the red flags, and a ready-to-send message for the seller.
 
@@ -77,9 +79,10 @@ Needs Python 3.10+ and [Claude Code](https://code.claude.com) logged in (or an A
 ## Development
 
 ```sh
-uv sync                                   # dev tools (ruff, mypy), pinned in uv.lock
-uv run ruff check . && uv run mypy && uv run python -m unittest discover -s tests
+make install   # dev tools (pinned in uv.lock) and the pre-commit hooks
+make check     # ruff lint + format check, mypy, pytest; `make cov` adds a coverage report
 ```
 
-Standard-library Python, one module per job in `deal_scout/`. CI runs lint, types and tests on Python 3.10 and 3.12;
-golden tests freeze every prompt and message. Rules: [`docs/CODING_STANDARDS.md`](docs/CODING_STANDARDS.md).
+Standard-library Python, one module per job in `deal_scout/`. CI runs the same checks on Python 3.10 and 3.12; golden
+tests freeze every prompt and message. Pre-commit hooks format and lint on commit, and Dependabot keeps the actions
+and dependencies current. Rules: [`docs/CODING_STANDARDS.md`](docs/CODING_STANDARDS.md).

@@ -5,7 +5,7 @@ most of them (see "Development" in the README). Where a tool and this page disag
 
 ## Style
 
-- **PEP 8**, with a line length of 120. Names: `snake_case` for functions and variables, `CapWords` for classes,
+- **PEP 8**, with a line length of 120. Code is formatted with `ruff format` (pre-commit and CI enforce it). Names: `snake_case` for functions and variables, `CapWords` for classes,
   `UPPER_CASE` for module constants.
 - **PEP 257 docstrings** on every module, public class and public function. The first line is one sentence ending
   in a period. Say what and why; the signature already says the types.
@@ -70,7 +70,8 @@ These are design decisions, not style. Don't change them without the owner's say
 
 ## Tests
 
-- `unittest` from the standard library, run with `python3 -m unittest discover -s tests`.
+- Tests are `unittest.TestCase` classes, run with pytest (`uv run pytest`). Coverage must not drop below the floor
+  in `pyproject.toml` (`make cov`).
 - **No network and no real model calls.** Use the fakes in `tests/fakes.py`: `FakeRunner` for Claude Code,
   `FakeAnthropic` and `FakeOpenAI` for the SDKs; fake Telegram APIs and openers live next to their tests. Each test
   works in a temporary directory.
@@ -85,7 +86,7 @@ These are design decisions, not style. Don't change them without the owner's say
 
 - **Small, focused commits** with an imperative subject line under ~70 characters ("Split scoring out of
   process.py"), and a body when the why isn't obvious. Behaviour changes and refactors go in separate commits.
-- `ruff check`, `mypy` and the tests pass before every commit.
+- `make check` (ruff, format check, mypy, tests) passes before every commit; the pre-commit hooks run most of it.
 - **Never commit** `.env`, `.state.json`, `inbox/`, `listings/`, `logs/`, `.venv/` or `domains/*/criteria.md`. The
   repo is public: check `git diff --cached` for names, numbers and tokens before committing.
 - Commit as `Szymon Klempert <56302798+szymonklempert@users.noreply.github.com>`.
