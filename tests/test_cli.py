@@ -1,6 +1,9 @@
 import contextlib
 import io
+import pkgutil
 import stat
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,7 +25,7 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual([c[0] for c in self.run_cli("run")], ["run"])
 
     def test_each_subcommand(self):
-        for name in ("sheet", "market", "usage"):
+        for name in ("sheet", "market", "usage", "mcp"):
             self.assertEqual([c[0] for c in self.run_cli(name)], [name])
         name, args = self.run_cli("process", "7")[0]
         self.assertEqual((name, args.number), ("process", 7))
@@ -45,6 +48,34 @@ class DispatchTests(unittest.TestCase):
             with mock.patch.object(module, "main") as fake:
                 cli.main(argv)
             fake.assert_called_once_with(*expected)
+
+
+class McpCommandTests(unittest.TestCase):
+    def test_without_the_extra_it_says_how_to_install_it(self):
+        code = (
+            "import sys; sys.modules['mcp'] = None; sys.modules['mcp_types'] = None\n"
+            "from deal_scout import cli\ncli.main(['mcp'])"
+        )
+        done = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, check=False)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("uv sync --extra mcp", done.stderr)
+
+    def test_it_serves_with_the_server_module(self):
+        from deal_scout import mcp_server
+
+        with mock.patch.object(mcp_server, "main") as fake:
+            cli.main(["mcp"])
+        fake.assert_called_once_with()
+
+    def test_the_core_imports_without_mcp(self):
+        import deal_scout
+
+        names = [m.name for m in pkgutil.iter_modules(deal_scout.__path__, "deal_scout.") if "mcp_server" not in m.name]
+        code = "import sys; sys.modules['mcp'] = None; sys.modules['mcp_types'] = None\n" + "\n".join(
+            f"import {name}" for name in names
+        )
+        done = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr)
 
 
 class InitTests(unittest.TestCase):

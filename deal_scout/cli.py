@@ -6,6 +6,7 @@
     deal-scout sheet          copy every listing to the Google Sheet
     deal-scout market         rebuild listings/market.md
     deal-scout usage          print the Claude usage report
+    deal-scout mcp            serve the MCP server over stdio (needs the mcp extra)
 
 Each command calls the main() of the module that does the work. Standard library only.
 """
@@ -35,6 +36,7 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("sheet", help="copy every listing to the Google Sheet")
     sub.add_parser("market", help="rebuild listings/market.md")
     sub.add_parser("usage", help="print the Claude usage report")
+    sub.add_parser("mcp", help="serve the MCP server over stdio (needs: uv sync --extra mcp)")
     return p
 
 
@@ -77,6 +79,17 @@ def run_usage(args: argparse.Namespace) -> None:
     usage.main()
 
 
+def run_mcp(args: argparse.Namespace) -> None:
+    """Serve the MCP server over stdio."""
+    try:
+        from deal_scout import mcp_server  # here only: the mcp extra is optional and nothing else imports it
+    except ModuleNotFoundError as exc:
+        if (exc.name or "").split(".")[0] not in ("mcp", "mcp_types"):
+            raise
+        sys.exit("The MCP server needs the extra: uv sync --extra mcp (or pip install 'deal-scout[mcp]')")
+    mcp_server.main()
+
+
 COMMANDS: Mapping[str, Command] = {
     "run": run,
     "init": init,
@@ -84,6 +97,7 @@ COMMANDS: Mapping[str, Command] = {
     "sheet": run_sheet,
     "market": run_market,
     "usage": run_usage,
+    "mcp": run_mcp,
 }
 
 

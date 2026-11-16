@@ -20,12 +20,14 @@ dependencies = []
 [project.optional-dependencies]
 anthropic = ["anthropic"]  # PROVIDER=anthropic
 openai = ["openai"]        # PROVIDER=openai or openrouter
+mcp = ["mcp==2.3.0"]       # deal-scout mcp: the MCP server
 
 [dependency-groups]
-dev = ["ruff==0.17.5", "mypy==2.4.1", "pytest==9.2.0", "pytest-cov==7.1.0", "pre-commit==4.7.0"]
+dev = ["ruff==0.17.5", "mypy==2.4.1", "pytest==9.2.0", "pytest-cov==7.1.0", "pre-commit==4.7.0", "mcp==2.3.0"]
 
 [project.scripts]
 deal-scout = "deal_scout.cli:main"
+deal-scout-mcp = "deal_scout.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["deal_scout"]
