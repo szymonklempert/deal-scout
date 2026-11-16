@@ -61,7 +61,8 @@ anything.
   connections only); `telegram.py` is the API transport, `inbox.py` the inbox files, and `__main__.py` the start-up
   wiring: start it with `python3 -m deal_scout`. Config is in
   `.env` (see `.env.example`).
-- **Tests:** `uv run pytest` (plain `unittest` classes; `make check` runs lint, format check, types and tests). Shared fakes are in `tests/fakes.py`. `tests/test_golden.py`
+- **Tests:** `uv run pytest` (plain `unittest` classes; `make check` runs lint, format check, types and tests).
+  Shared fakes are in `tests/fakes.py`. `tests/test_golden.py`
   freezes every output the owner, the sheet or the model sees; if a change to one is intended, regenerate with
   `GOLDEN_UPDATE=1` and review the diff of `tests/golden/`. Deployment: `deploy/README.md`.
 - **Changing the bot:** keep it standard library only, keep the allowlist behaviour (strangers get no answer), and
