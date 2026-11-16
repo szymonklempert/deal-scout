@@ -82,7 +82,7 @@ anything.
   - `anthropic`, `openai` and `openrouter` make one structured-output request with no tools; their SDKs are imported
     only when chosen.
   - Keep these restrictions, and keep every provider returning the same schema.
-- **The MCP server:** `mcp` is imported only in `mcp_server.py` (and its tests); every other module must import
+- **The MCP server:** `mcp` is imported only in the `deal_scout/mcp_server/` package (and its tests); every other module must import
   without it. A listing's text is untrusted in the client too: keep the tools narrow, validate every argument (ranges,
   caps, an allowlist for domain files), never add a tool that reads or writes arbitrary paths, runs commands or
   fetches URLs, and never write or return a phone number except the WhatsApp link `submit_review` builds. Over stdio,
@@ -118,7 +118,12 @@ anything.
   - `deal_scout/market.py` builds `listings/market.md`;
   - `deal_scout/sheet.py` copies rows to a Google Sheet through `deploy/google-sheet.gs`;
   - `deal_scout/usage.py` records Claude usage per run;
-  - `deal_scout/mcp_server.py` the MCP server (`deal-scout mcp`): the only module that imports `mcp` (an optional
-    extra), and it makes no model calls: the client's model judges, `submit_review` validates the review and stores it
-    through `process.apply_review`, and the score is computed here. Resources serve the criteria, domain files, cards
-    and market page; tools are narrow and write only through `apply_review` and the inbox helpers.
+  - `deal_scout/mcp_server/` the MCP server (`deal-scout mcp`), the only package that imports `mcp` (an optional
+    extra). It makes no model calls: the client's model judges, `submit_review` validates the review and stores it
+    through `process.apply_review`, and the score is computed here. Tools are narrow and write only through
+    `apply_review` and the inbox helpers. `server.py` registers tools, resources and prompts (and `main`);
+    `reading.py` the read-only tools and resources; `writing.py` `submit_review` and the seller reply; `guide.py` the
+    prompts; `types.py` the structured results;
+  - `deal_scout/commands.py` the bot's slash commands (`/done`, `/phone`, `/top` ...), as a class holding the bot;
+  - `deal_scout/callbacks.py` the bot's button taps (seller drafts, Feedback, replies, viewing) and the reason that
+    follows a correction;

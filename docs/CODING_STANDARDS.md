@@ -30,7 +30,8 @@ most of them (see "Development" in the README). Where a tool and this page disag
 ## Design
 
 - **Small, single-purpose units.** One module does one job (prompting, scoring, storage, rendering, contact,
-  transport). A function aims for under ~40 lines; a longer one needs a reason.
+  transport). A function aims for under ~40 lines; a longer one needs a reason. A module aims for 300 lines or
+  fewer; 400 is the hard limit (`tests/test_layout.py` enforces it). Split by job, not by line count.
 - **No import-time side effects** except defining constants. Importing a module never reads `.env`, loads a domain,
   touches the disk or the network.
 - **Configuration in one place.** `deal_scout/config.py` reads the environment once into a typed settings object, and
