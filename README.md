@@ -6,7 +6,8 @@
 structured, scored, comparable data.**
 
 Forward a listing's screenshots to a private Telegram bot and get back a scored review, the red flags, and a
-ready-to-send message for the seller.
+ready-to-send message for the seller. Every listing is saved locally (a CSV plus a record and a card per listing) and
+to your Google Sheet.
 
 <table>
   <tr>
