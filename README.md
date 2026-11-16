@@ -31,6 +31,8 @@ review, the red flags, and a ready-to-send message for the seller.
   WhatsApp opens with it typed in, the SMS version copies with a tap.
 - 📨 **Follow-ups handled.** Forward the seller's reply: the listing is re-scored, answered questions drop out, and a
   follow-up (or a viewing request) is drafted.
+- ☀️ **It speaks first.** A morning digest lists sellers still waiting on you, your top listings and market moves;
+  a repost of an earlier listing is pointed out with its price change.
 - 📊 **Everything organised.** Each listing lands in a Google Sheet (and a CSV) with its score, specs and your status,
   plus a card with all the facts.
 - 📈 **Knowledge that keeps improving.** Market prices are recalculated from your own listings after every analysis.
@@ -73,6 +75,8 @@ Needs Python 3.12+ and [Claude Code](https://code.claude.com) logged in (or an A
 | `/done`, `/done 7` | analyse the listing, or re-analyse #7 |
 | `/phone 7 600 123 456` | add the seller's number to #7's WhatsApp message |
 | `/list`, `/market`, `/sheet` | recent listings, market prices, the Google Sheet |
+| `/top`, `/compare 7 12`, `/show 7` | best open listings; side by side; one summary again (`/show_7` works too) |
+| `/digest` | the morning digest now (it also arrives by itself at `DIGEST_TIME`) |
 | `/status`, `/usage` | is the bot up to date; how much Claude it used |
 | 📨 / 📝 buttons | add the seller's reply; correct a score |
 

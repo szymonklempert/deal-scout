@@ -86,6 +86,9 @@ anything.
   - `deal_scout/corrections.py` applies the owner's Feedback taps to a listing's stored data;
   - `deal_scout/feedback_menu.py` the Feedback screens and their buttons (pure);
   - `deal_scout/providers.py` the API providers;
+  - `deal_scout/reports.py` the /top ranking, the /compare table and the repost line (pure);
+  - `deal_scout/digest.py` the morning digest and its schedule (pure);
+  - `deal_scout/library.py` reads the stored listings for /show, /top, /compare and the digest;
   - `deal_scout/config.py` reads `.env` and the environment once into `Settings` (nothing else reads `os.environ`) and
     defines the project root;
   - `deal_scout/domain.py` loads the active domain;
