@@ -61,6 +61,41 @@ class ApiRequestTests(unittest.TestCase):
         )
         self.assertEqual([p.name for p in images], ["photo_01.jpg", "photo_02.jpg", "reply_01.jpg"])
 
+    def test_viewing_findings_follow_the_replies(self):
+        (self.folder / "replies.txt").write_text("[2026-01-01 10:00] VIN is ABC\n", encoding="utf-8")
+        (self.folder / "reply_01.jpg").write_bytes(b"r1")
+        (self.folder / "viewing_checks.txt").write_text("❌ problem: Screen\n", encoding="utf-8")
+        (self.folder / "viewing.txt").write_text("[2026-01-03 12:00] rust\n", encoding="utf-8")
+        (self.folder / "viewing_01.jpg").write_bytes(b"v1")
+        (self.folder / "viewing_02.jpg").write_bytes(b"v2")
+        system, user, images = self.request()
+        self.assertLess(
+            user.index("The seller's replies:"), user.index("checklist results from the viewing:\n❌ problem")
+        )
+        self.assertIn("The owner's notes from the viewing:\n[2026-01-03 12:00] rust", user)
+        self.assertTrue(
+            user.endswith(
+                "2 photo(s) of the listing, then 1 of the seller's replies, then 2 from the viewing, "
+                "are attached, in order."
+            )
+        )
+        self.assertEqual(
+            [p.name for p in images],
+            ["photo_01.jpg", "photo_02.jpg", "reply_01.jpg", "viewing_01.jpg", "viewing_02.jpg"],
+        )
+        self.assertIn("viewing_checks", system)
+
+    def test_viewing_photos_alone(self):
+        (self.folder / "viewing_01.jpg").write_bytes(b"v1")
+        _, user, images = self.request()
+        self.assertTrue(user.endswith("2 photo(s) of the listing, then 1 from the viewing, are attached, in order."))
+        self.assertEqual(len(images), 3)
+
+    def test_schema_requires_viewing_checks(self):
+        schema = prompts.schema(CAMPERVAN)
+        self.assertIn("viewing_checks", schema["required"])
+        self.assertEqual(schema["properties"]["viewing_checks"], {"type": "array", "items": {"type": "string"}})
+
 
 if __name__ == "__main__":
     unittest.main()

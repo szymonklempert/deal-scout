@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 from deal_scout.inbox import Inbox
 from deal_scout.render import Message
+from deal_scout.viewing_menu import finish_button
 
 log = logging.getLogger("dealscout")
 
@@ -20,6 +21,7 @@ AckKind = Literal["listing", "reply", "viewing"]
 REPLY_ENDED = "reply mode ended; what you sent is kept. Tap 📨 again to add more."
 ANALYSIS_OFF = "Analysis is off. Set ANALYSIS=manual or ANALYSIS=auto in .env and restart."
 REPLY_SECONDS = 900  # how long reply mode lasts after the last message
+VIEWING_SECONDS = 7200  # how long viewing mode lasts after the last message
 ACK_DELAY = 2  # seconds of quiet before confirming what was saved
 REPLY_TAPS = ("sr", "sa", "sc")  # seller replied, re-analyse, cancel
 
@@ -107,6 +109,10 @@ class Attach:
             photos, texts = self.inbox.reply_summary(n)
             self.reply(f"📨 #{n}: {photos} photo(s), {texts} text(s) saved as the seller's reply.")
             return
+        if kind == "viewing":
+            photos, notes = self.inbox.viewing_summary(n)
+            self.reply(f"🔍 #{n}: {photos} photo(s), {notes} note(s) saved from the viewing.")
+            return
         photos, links = self.inbox.summary(n)
         self.reply(f"#{n}: {photos} photo(s), {len(links)} link(s) saved.")
 
@@ -115,11 +121,13 @@ class Attach:
         attach = self.pending
         assert attach is not None  # the bot only calls this while a mode is open
         n = attach.n
-        failed = self.download_photos(n, ids, self.inbox.add_reply_photo)
+        viewing = attach.kind == "viewing"
+        failed = self.download_photos(n, ids, self.inbox.add_viewing_photo if viewing else self.inbox.add_reply_photo)
         if text:
-            self.inbox.add_reply(n, text, msg.get("date") or self.clock())
-        log.info("#%d: saved %d reply photo(s)%s", n, len(ids) - failed, " and text" if text else "")
-        attach.until = self.clock() + REPLY_SECONDS
+            add_text = self.inbox.add_viewing_note if viewing else self.inbox.add_reply
+            add_text(n, text, msg.get("date") or self.clock())
+        log.info("#%d: saved %d %s photo(s)%s", n, len(ids) - failed, attach.kind, " and text" if text else "")
+        attach.until = self.clock() + (VIEWING_SECONDS if viewing else REPLY_SECONDS)
         attach.saved += 1
         self.start_ack(n, attach.kind)
 
@@ -152,9 +160,10 @@ class Attach:
 
     def leave_for_command(self, cmd: str, args: Sequence[str]) -> bool:
         """End attach mode before a command; True when the command was /done and became the re-analysis."""
-        attach, self.pending = self.pending, None
-        if attach is None:
-            return False
+        attach = self.pending
+        if attach is None or attach.kind == "viewing":
+            return False  # a viewing lasts through other commands; /done there is the bot's call (it finishes it)
+        self.pending = None
         if cmd == "/done" and not args:
             self.request_analysis(attach.n)
             return True
@@ -168,6 +177,14 @@ class Attach:
             return
         self.pending = None
         self.flush_ack(force=True)
+        if attach.kind == "viewing":
+            self.send(
+                Message(
+                    f"🔍 #{attach.n}: viewing mode ended after 2 hours of quiet. Finish when you're ready:",
+                    buttons=(finish_button(attach.n),),
+                )
+            )
+            return
         if attach.saved and self.auto_analyse:
             self.queue_analysis(attach.n)
             return
@@ -177,3 +194,10 @@ class Attach:
                 buttons=(reanalyse_button(attach.n),),
             )
         )
+
+    def viewing_tap(self, action: str, n: int) -> None:
+        """Follow a tap in the viewing checklist: "start" opens viewing mode for listing n, finish or cancel end it."""
+        if action == "start":
+            self.pending = PendingAttach(n, until=self.clock() + VIEWING_SECONDS, kind="viewing")
+        elif action in ("finish", "cancel") and self.pending and self.pending.kind == "viewing" and self.pending.n == n:
+            self.pending = None

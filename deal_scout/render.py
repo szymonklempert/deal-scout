@@ -77,6 +77,7 @@ def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | 
     if (data.get("seller_sms") or "").strip():
         buttons.append(("✉️ SMS", f"sms:{n}:{phone or ''}"))
     buttons.append(("📨 Seller replied", f"sr:{n}"))
+    buttons.append(("🔍 Viewing", f"vw:{n}"))
     if data.get("specs") or data.get("criteria_checks"):
         buttons.append(("📝 Feedback", f"fx:{n}:{phone or ''}"))
     if sheet_link:

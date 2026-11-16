@@ -131,6 +131,7 @@ FIX_PREFIXES = {
     "fr": "skip",
     "fd": "done",
 }  # callback prefix -> corrections.fix action
+VIEW_PREFIXES = {"vw": "start", "vc": "toggle", "vf": "finish", "vx": "cancel"}  # callback prefix -> viewing action
 REASON_SECONDS = 600  # how long the next plain text message counts as the reason for a correction
 
 
@@ -162,6 +163,7 @@ class Bot:
         reports: Callable[[str, Sequence[str]], list[Message]] | None = None,
         digest: Callable[..., list[Message]] | None = None,
         digest_time: tuple[int, int] | None = None,
+        viewer: Callable[[int, str, list[str]], FixReply] | None = None,
     ) -> None:
         """Wire the bot to its Telegram API, data folder, allowed user and the optional analysis callbacks."""
         self.api = api
@@ -176,6 +178,7 @@ class Bot:
         self.reports = reports  # callable(command, args) -> messages for /top, /compare and /show
         self.digest = digest  # callable(save=...) -> the digest's messages (none when there is nothing to say)
         self.digest_time = digest_time  # (hour, minute) of the daily digest in local time; None means off
+        self.viewer = viewer  # callable(n, action, args) -> what to show after a 🔍 Viewing tap
         self.pending_reason: PendingReason | None = None  # in memory only; a restart forgets it
         self.feedback_phone: dict[int, str] = {}  # listing -> phone from a Feedback tap (memory only)
         self.version = code_version()
@@ -300,6 +303,10 @@ class Bot:
         """Answer a slash command from the owner."""
         self.attach.flush_ack(force=True)  # confirm what was saved before answering (e.g. before /done starts)
         cmd, args = reports_mod.split_show_link(cmd, args)  # a tapped "/show_12" is "/show 12"
+        viewing = self.attach.pending if self.attach.pending and self.attach.pending.kind == "viewing" else None
+        if viewing and cmd == "/done" and not args:
+            self.handle_viewing(None, "finish", viewing.n, [])  # /done in a viewing finishes it
+            return
         if self.attach.leave_for_command(cmd, args):
             return
         handlers: dict[str, Callable[[int | None, Sequence[str]], None]] = {
@@ -466,6 +473,9 @@ class Bot:
                 self.pending_reason = None  # the next messages are the seller's reply
             self.attach.tap(parts[0], int(parts[1]))
             return
+        if parts[0] in VIEW_PREFIXES and len(parts) > 1 and parts[1].isdigit():
+            self.handle_viewing(cb.get("message"), VIEW_PREFIXES[parts[0]], int(parts[1]), parts[2:])
+            return
         if parts[0] == "sh" and len(parts) > 1 and parts[1].isdigit():
             self.run_reports("/show", self.allowed, parts[1:2])
             return
@@ -483,6 +493,23 @@ class Bot:
         log.info("#%d: sent the %s draft", n, parts[0])
         for item in items:
             self.send(item)
+
+    def handle_viewing(self, tapped: dict[str, Any] | None, action: str, n: int, args: list[str]) -> None:
+        """Answer a tap in the 🔍 Viewing checklist (the sender was already checked), or a /done that finishes it."""
+        if self.viewer is None:
+            return
+        self.attach.flush_ack(force=True)
+        try:
+            reply = self.viewer(n, action, args)
+        except Exception as exc:
+            self.reply(self.allowed, f"#{n}: {exc}")
+            return
+        if action == "start":
+            self.pending_reason = None  # the next messages are the owner's viewing notes
+        self.attach.viewing_tap(action, n)
+        self.show(reply, tapped)
+        if action == "finish":
+            self.request_analysis(n)
 
     def request_analysis(self, n: int) -> None:
         """Queue listing n for analysis, or say that analysis is off."""

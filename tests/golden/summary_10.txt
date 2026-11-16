@@ -17,5 +17,6 @@ Score <b>5.7/10</b> · specs <b>6.0/10</b> · <b>ask first</b>
 [💬 WhatsApp message] msg:10:48600111222
 [✉️ SMS] sms:10:48600111222
 [📨 Seller replied] sr:10
+[🔍 Viewing] vw:10
 [📝 Feedback] fx:10:48600111222
 [📊 Open sheet] https://docs.google.com/spreadsheets/d/golden/edit

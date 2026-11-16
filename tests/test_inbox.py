@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from deal_scout.inbox import Inbox
+from deal_scout.inbox import Inbox, viewing_files
 
 
 class InboxTest(unittest.TestCase):
@@ -32,6 +32,23 @@ class InboxTest(unittest.TestCase):
             self.assertEqual(inbox.summary(1), (1, []))  # photo_* untouched, nothing added to links.txt
             self.assertFalse((folder / "notes.txt").exists())
             self.assertEqual(inbox.reply_summary(2), (0, 0))
+
+    def test_viewing_files_are_kept_apart(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox = Inbox(Path(tmp))
+            folder = Path(tmp) / "inbox" / "001"
+            self.assertEqual(inbox.add_viewing_photo(1, b"a").name, "viewing_01.jpg")
+            self.assertEqual(inbox.add_viewing_photo(1, b"b").name, "viewing_02.jpg")
+            inbox.add_viewing_note(1, "rust\nsecond line", 1000.0)
+            self.assertRegex(
+                (folder / "viewing.txt").read_text(), r"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] rust\nsecond line\n$"
+            )
+            (folder / "viewing_checks.txt").write_text("x", encoding="utf-8")  # not an image
+            self.assertEqual(inbox.viewing_summary(1), (2, 1))
+            self.assertEqual(viewing_files(folder), 4)
+            self.assertEqual(inbox.add_viewing_photo(1, b"c").name, "viewing_03.jpg")
+            self.assertEqual((inbox.summary(1), inbox.reply_summary(1)), ((0, []), (0, 0)))
+            self.assertEqual(viewing_files(Path(tmp) / "inbox" / "002"), 0)
 
 
 if __name__ == "__main__":

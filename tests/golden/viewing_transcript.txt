@@ -1,0 +1,82 @@
+[html]
+🔍 Viewing #1 Acme Widget 3 128 GB: tap an item when you've checked it (✅ fine, tap again ❌ a problem, again to clear). Send photos or notes any time.
+[☐ Battery health in settings] vc:1:0
+[☐ Screen: dead pixels, scratches] vc:1:1
+[☐ Original charger works] vc:1:2
+[☐ Serial matches box] vc:1:3
+[✅ Finish viewing] vf:1
+[Cancel] vx:1
+
+=====
+
+[edit]
+[html]
+🔍 Viewing #1 Acme Widget 3 128 GB: tap an item when you've checked it (✅ fine, tap again ❌ a problem, again to clear). Send photos or notes any time.
+[✅ Battery health in settings] vc:1:0
+[☐ Screen: dead pixels, scratches] vc:1:1
+[☐ Original charger works] vc:1:2
+[☐ Serial matches box] vc:1:3
+[✅ Finish viewing] vf:1
+[Cancel] vx:1
+
+=====
+
+[edit]
+[html]
+🔍 Viewing #1 Acme Widget 3 128 GB: tap an item when you've checked it (✅ fine, tap again ❌ a problem, again to clear). Send photos or notes any time.
+[✅ Battery health in settings] vc:1:0
+[✅ Screen: dead pixels, scratches] vc:1:1
+[☐ Original charger works] vc:1:2
+[☐ Serial matches box] vc:1:3
+[✅ Finish viewing] vf:1
+[Cancel] vx:1
+
+=====
+
+[edit]
+[html]
+🔍 Viewing #1 Acme Widget 3 128 GB: tap an item when you've checked it (✅ fine, tap again ❌ a problem, again to clear). Send photos or notes any time.
+[✅ Battery health in settings] vc:1:0
+[❌ Screen: dead pixels, scratches] vc:1:1
+[☐ Original charger works] vc:1:2
+[☐ Serial matches box] vc:1:3
+[✅ Finish viewing] vf:1
+[Cancel] vx:1
+
+=====
+
+🔍 #1: 1 photo(s), 1 note(s) saved from the viewing.
+
+=====
+
+[edit]
+🔍 Viewing #1 finished: 1 fine, 1 problem, 2 not checked.
+
+=====
+
+#1: analysing, usually about a minute...
+
+=====
+
+[html]
+<b>#1 Acme Widget 3 128 GB</b>
+<b>1 350 PLN</b> · Kraków · Gadgets for sale
+Seller: Alex Example
+Score <b>4.3/10</b> · specs <b>6.0/10</b> · <b>ask first</b>
+<i>Battery is worn; negotiate or skip.</i>
+🔍 After the viewing: score 5.7 → 4.3 · problems: Screen: dead pixels, scratches
+
+🟡 Price vs market: 1 350 PLN · fair 1.0-1.2k · 5/10
+🟢 Condition: light scratches &lt;back&gt; · 7/10
+⚪ Battery: <i>not shown</i>
+⚪ Accessories: <i>not shown</i>
+
+🚩 price above fair range · no receipt
+💬 listing asks for whatsapp · tap below for the message to the seller
+📄 listings/001.md
+[💬 WhatsApp message] msg:1:48600111222
+[✉️ SMS] sms:1:48600111222
+[📨 Seller replied] sr:1
+[🔍 Viewing] vw:1
+[📝 Feedback] fx:1:48600111222
+[📊 Open sheet] https://docs.google.com/spreadsheets/d/golden/edit

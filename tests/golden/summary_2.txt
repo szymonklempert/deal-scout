@@ -14,5 +14,6 @@ Score <b>5.7/10</b> · specs <b>6.0/10</b> · <b>ask first</b>
 📄 listings/002.md
 [💬 WhatsApp message] msg:2:
 [📨 Seller replied] sr:2
+[🔍 Viewing] vw:2
 [📝 Feedback] fx:2:
 [📊 Open sheet] https://docs.google.com/spreadsheets/d/golden/edit

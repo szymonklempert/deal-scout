@@ -6,7 +6,7 @@ import logging.handlers
 import sys
 from pathlib import Path
 
-from deal_scout import contact, corrections, digest, domain, library, process, providers, sheet
+from deal_scout import contact, corrections, digest, domain, library, process, providers, sheet, viewing
 from deal_scout.bot import Bot, log
 from deal_scout.config import ROOT, Settings, load_env
 from deal_scout.telegram import TelegramAPI
@@ -59,6 +59,7 @@ def main() -> None:
         reports=functools.partial(library.reports_for, ROOT, settings=settings, domain=d),
         digest=functools.partial(library.digest_messages, ROOT, domain=d),
         digest_time=digest_time,
+        viewer=functools.partial(viewing.handle, ROOT),
     )
     try:
         provider = providers.name(settings)

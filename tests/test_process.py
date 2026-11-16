@@ -26,7 +26,9 @@ class NoSellerMessageTests(unittest.TestCase):
             runner=FakeRunner(dict(RESULT, seller_message=" ", seller_sms="")),
         )
         self.assertEqual(len(out), 1)
-        self.assertEqual(out[0].buttons, (("📨 Seller replied", "sr:1"), ("📝 Feedback", "fx:1:48600123456")))
+        self.assertEqual(
+            out[0].buttons, (("📨 Seller replied", "sr:1"), ("🔍 Viewing", "vw:1"), ("📝 Feedback", "fx:1:48600123456"))
+        )
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -59,6 +61,7 @@ class ProcessListingTests(unittest.TestCase):
                 ("💬 WhatsApp message", "msg:1:48600123456"),
                 ("✉️ SMS", "sms:1:48600123456"),
                 ("📨 Seller replied", "sr:1"),
+                ("🔍 Viewing", "vw:1"),
                 ("📝 Feedback", "fx:1:48600123456"),
             ),
         )
@@ -136,6 +139,46 @@ class ProcessListingTests(unittest.TestCase):
         )[0]
         self.assertNotIn("📨 After", again.text)  # no new reply since the last analysis
         self.assertIn(("📨 Seller replied", "sr:1"), again.buttons)
+
+    def test_viewing_findings_add_one_line_and_the_checklist_survives(self):
+        def analyse(data=None):
+            runner = FakeRunner(data or RESULT)
+            return process.process_listing(
+                self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus", runner=runner
+            )[0]
+
+        self.assertNotIn("🔍 After", analyse().text)
+        path = self.root / "listings/001.json"
+        stored = json.loads(path.read_text())
+        self.assertNotIn("viewing_seen", stored)
+        stored["viewing"] = {
+            "items": ["Rust", "Chain"],
+            "marks": {"0": "bad", "1": "ok"},
+            "started": "2026-11-16 10:00",
+        }
+        path.write_text(json.dumps(stored))
+        folder = self.root / "inbox" / "001"
+        (folder / "viewing_checks.txt").write_text("❌ problem: Rust\n✅ fine: Chain\n", encoding="utf-8")
+        (folder / "viewing.txt").write_text("[2026-11-16 10:30] rusty\n", encoding="utf-8")
+        (folder / "viewing_01.jpg").write_bytes(b"v")
+        worse = dict(RESULT, criteria_checks=[check("Budget", "met", True), check("Fixed bed", "missed")])
+        text = analyse(worse).text
+        self.assertRegex(text, r"\n🔍 After the viewing: score 6\.2 → [\d.]+ · problems: Rust\n\n")
+        again = json.loads(path.read_text())
+        self.assertEqual((again["viewing_seen"], again["viewing"]["marks"]), (3, {"0": "bad", "1": "ok"}))
+        self.assertNotIn("🔍 After", analyse(worse).text)  # nothing new since the last analysis
+
+    def test_reply_and_viewing_lines_come_together(self):
+        process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus", runner=FakeRunner())
+        folder = self.root / "inbox" / "001"
+        (folder / "replies.txt").write_text("[2026-11-16 09:00] VIN is ABC\n", encoding="utf-8")
+        (folder / "viewing.txt").write_text("[2026-11-16 10:30] fine\n", encoding="utf-8")
+        text = process.process_listing(
+            self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus", runner=FakeRunner()
+        )[0].text
+        self.assertRegex(
+            text, r"📨 After the seller's reply: [^\n]+\n🔍 After the viewing: [^\n]+no problems found\n\n"
+        )
 
     def test_reanalysis_keeps_when_the_seller_was_contacted(self):
         process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus", runner=FakeRunner())

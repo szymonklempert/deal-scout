@@ -27,12 +27,13 @@ from deal_scout.contact import normalise_phone, scrub_phone
 from deal_scout.domain import Domain
 from deal_scout.errors import ProcessError
 from deal_scout.feedback import Overrides, apply_overrides, carry_overrides
-from deal_scout.inbox import reply_counts
+from deal_scout.inbox import reply_counts, viewing_files
 from deal_scout.prompts import Listing
 from deal_scout.render import Message, esc, plain_text, summary_buttons, summary_text
 from deal_scout.replies import reply_note
 from deal_scout.reports import repost_line
 from deal_scout.storage import Row, csv_fields, csv_row, read_rows, same_seller, write_index, write_rows
+from deal_scout.viewing_menu import viewing_note
 
 log = logging.getLogger("dealscout")
 log.addHandler(logging.NullHandler())  # quiet unless setup_logging() adds real handlers
@@ -67,6 +68,8 @@ def process_listing(
     seen = sum(reply_counts(root / "inbox" / nnn))
     if seen:
         data["replies_seen"] = seen  # lets the next analysis tell whether the seller has replied since
+    if viewed := viewing_files(root / "inbox" / nnn):
+        data["viewing_seen"] = viewed  # the same for the owner's findings at a viewing
     with storage.ROWS_LOCK:  # a score correction in the polling thread must not interleave with this update
         previous = read_listing(listings / (nnn + ".json"))
         overrides, dropped = carry_overrides(read_overrides(listings / (nnn + ".json")), data)
@@ -76,6 +79,8 @@ def process_listing(
             data["overrides"] = overrides
         if previous and previous.get("contacted_at"):
             data["contacted_at"] = previous["contacted_at"]  # a re-analysis does not forget the seller was contacted
+        if previous and previous.get("viewing"):
+            data["viewing"] = previous["viewing"]  # nor the checklist and the owner's marks
         (listings / (nnn + ".json")).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         rows = read_rows(listings / "listings.csv")
         links = root / "inbox" / nnn / "links.txt"
@@ -87,7 +92,8 @@ def process_listing(
         write_index(listings / "INDEX.md", rows)
         refresh_market(listings, domain)
     note = sheet_note(rows[n], domain, settings, pusher)
-    changed = reply_note(previous, data, old_score, rows[n]["score"])
+    notes = (reply_note, viewing_note)
+    changed = "\n".join(x for x in (f(previous, data, old_score, rows[n]["score"]) for f in notes) if x)
     return [summary_message(n, shown, rows, domain, phone, sheet.link(settings), note, changed)]
 
 

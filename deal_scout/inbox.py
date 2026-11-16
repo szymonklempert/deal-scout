@@ -1,4 +1,4 @@
-"""The inbox folder: one inbox/<NNN>/ per listing, with its photos, notes, links and the seller's replies."""
+"""The inbox folder: one inbox/<NNN>/ per listing, with its photos, notes, links, replies and viewing findings."""
 
 import re
 import time
@@ -13,6 +13,19 @@ def reply_counts(folder: Path) -> tuple[int, int]:
     path = folder / "replies.txt"
     texts = len(REPLY_LINE.findall(path.read_text(encoding="utf-8"))) if path.exists() else 0
     return len(list(folder.glob("reply_*"))), texts
+
+
+def viewing_counts(folder: Path) -> tuple[int, int]:
+    """Return how many viewing images and viewing notes a listing folder holds (a note may span several lines)."""
+    path = folder / "viewing.txt"
+    notes = len(REPLY_LINE.findall(path.read_text(encoding="utf-8"))) if path.exists() else 0
+    return len(list(folder.glob("viewing_[0-9]*"))), notes
+
+
+def viewing_files(folder: Path) -> int:
+    """Return how many pieces of the owner's viewing findings a folder holds: the results file, images and notes."""
+    images, notes = viewing_counts(folder)
+    return images + notes + int((folder / "viewing_checks.txt").exists())
 
 
 class Inbox:
@@ -65,6 +78,24 @@ class Inbox:
     def reply_summary(self, n: int) -> tuple[int, int]:
         """Return the listing's count of reply photos and reply texts."""
         return reply_counts(self.dir / f"{n:03d}")
+
+    def add_viewing_photo(self, n: int, data: bytes, ext: str = ".jpg") -> Path:
+        """Save an image taken at the viewing as the listing's next viewing_NN file and return its path."""
+        folder = self.folder(n)
+        count = len(list(folder.glob("viewing_[0-9]*")))
+        path = folder / f"viewing_{count + 1:02d}{ext}"
+        path.write_bytes(data)
+        return path
+
+    def add_viewing_note(self, n: int, text: str, when: float) -> None:
+        """Append a timestamped note from the viewing to the listing's viewing.txt."""
+        with open(self.folder(n) / "viewing.txt", "a", encoding="utf-8") as f:
+            stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(when))
+            f.write(f"[{stamp}] {text}\n")
+
+    def viewing_summary(self, n: int) -> tuple[int, int]:
+        """Return the listing's count of viewing photos and viewing notes."""
+        return viewing_counts(self.dir / f"{n:03d}")
 
     def add_links(self, n: int, links: Sequence[str]) -> list[str]:
         """Append the links not seen before to links.txt and return the new ones."""

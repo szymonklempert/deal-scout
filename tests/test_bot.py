@@ -548,6 +548,136 @@ class BotTests(unittest.TestCase):
         self.assertIn("reply mode ended after 15 minutes", self.api.sent[1])
         self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001", "002"])
 
+    def viewing_bot(self, processor=True):
+        calls = []
+
+        def viewer(n, action, args):
+            calls.append((n, action, args))
+            if action == "boom":
+                raise ValueError("nothing to check")
+            return FixReply(Message(f"list {action}", buttons=(("A", f"vc:{n}:0"),)), edit=action != "start")
+
+        bot, done = self.analysing_bot()
+        bot.viewer = viewer
+        if not processor:
+            bot.processor = None
+        bot.handle_update(msg(photo="a"))
+        bot.handle_update(msg(text="/new"))
+        self.api.sent.clear()
+        return bot, calls, done
+
+    def test_stranger_viewing_taps_are_ignored(self):
+        bot, calls, _ = self.viewing_bot()
+        for data in ("vw:1", "vc:1:0", "vf:1", "vx:1"):
+            self.tap_reply(bot, data, user=99)
+        self.assertEqual((calls, bot.attach.pending, self.api.sent), ([], None, []))
+
+    def test_viewing_taps_route_to_the_viewer(self):
+        bot, calls, _ = self.viewing_bot()
+        self.fix_tap(bot, "vw:1")
+        self.fix_tap(bot, "vc:1:3")
+        self.assertEqual(calls, [(1, "start", []), (1, "toggle", ["3"])])
+        self.assertEqual(self.api.sent, ["list start"])  # the first screen is new, the toggle edits the tapped one
+        self.assertEqual(self.api.edited, [(77, "list toggle", [("A", "vc:1:0")], 1)])
+        self.assertEqual((bot.attach.pending.kind, bot.attach.pending.n), ("viewing", 1))
+
+    def test_start_clears_a_pending_reason_and_replaces_another_mode(self):
+        bot, calls = self.fix_bot()
+        bot.viewer = lambda n, action, args: FixReply(Message("list"))
+        bot.handle_update(msg(photo="a"))
+        self.fix_tap(bot, "fv:1:0:3")
+        self.tap_reply(bot, "sr:1")
+        self.assertEqual(bot.attach.pending.kind, "reply")
+        self.fix_tap(bot, "fv:1:0:3")
+        self.fix_tap(bot, "vw:1")
+        self.assertIsNone(bot.pending_reason)
+        self.assertEqual(bot.attach.pending.kind, "viewing")
+
+    def test_messages_in_viewing_mode_go_to_the_listing(self):
+        bot, _, _ = self.viewing_bot()
+        self.fix_tap(bot, "vw:1")
+        self.api.sent.clear()
+        bot.handle_update(msg(photo="shot"))
+        bot.handle_update(msg(text="chain rattles https://x.pl/a"))
+        self.clock.t += 3
+        bot.tick()
+        folder = self.root / "inbox/001"
+        self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001"])
+        self.assertTrue((folder / "viewing_01.jpg").exists())
+        self.assertIn("chain rattles", (folder / "viewing.txt").read_text())
+        self.assertFalse((folder / "notes.txt").exists() or (folder / "links.txt").exists())
+        self.assertEqual(self.api.sent, ["🔍 #1: 1 photo(s), 1 note(s) saved from the viewing."])
+
+    def test_finish_button_ends_the_mode_edits_the_list_and_queues_the_analysis(self):
+        bot, calls, done = self.viewing_bot()
+        self.fix_tap(bot, "vw:1")
+        self.fix_tap(bot, "vf:1")
+        self.assertIsNone(bot.attach.pending)
+        self.assertEqual(calls[-1], (1, "finish", []))
+        self.assertEqual(self.api.edited[-1][1], "list finish")
+        self.assertEqual(self.api.sent[-1], "#1: analysing, usually about a minute...")
+        self.drain(bot)
+        self.assertEqual(done, [1])
+
+    def test_done_in_viewing_mode_finishes_it(self):
+        bot, calls, done = self.viewing_bot()
+        self.fix_tap(bot, "vw:1")
+        bot.handle_update(msg(text="note"))
+        bot.handle_update(msg(text="/done"))
+        self.assertEqual(calls[-1], (1, "finish", []))
+        self.assertIsNone(bot.attach.pending)
+        self.assertEqual(
+            self.api.sent[-3:],  # no message to edit after a command: the tally is sent as a new one
+            [
+                "🔍 #1: 0 photo(s), 1 note(s) saved from the viewing.",
+                "list finish",
+                "#1: analysing, usually about a minute...",
+            ],
+        )
+        self.drain(bot)
+        self.assertEqual(done, [1])
+
+    def test_finish_with_analysis_off_still_ends_the_viewing(self):
+        bot, calls, _ = self.viewing_bot(processor=False)
+        self.fix_tap(bot, "vw:1")
+        self.fix_tap(bot, "vf:1")
+        self.assertIsNone(bot.attach.pending)
+        self.assertIn("Analysis is off", self.api.sent[-1])
+        self.assertTrue(bot.jobs.empty())
+
+    def test_cancel_ends_the_mode_without_analysing(self):
+        bot, calls, done = self.viewing_bot()
+        self.fix_tap(bot, "vw:1")
+        self.fix_tap(bot, "vx:1")
+        self.assertIsNone(bot.attach.pending)
+        self.assertEqual(calls[-1], (1, "cancel", []))
+        self.assertTrue(bot.jobs.empty())
+
+    def test_other_commands_leave_viewing_mode_on(self):
+        bot, _, _ = self.viewing_bot()
+        self.fix_tap(bot, "vw:1")
+        bot.handle_update(msg(text="/list"))
+        self.assertIsNotNone(bot.attach.pending)
+
+    def test_viewer_errors_are_reported_and_leave_the_mode_alone(self):
+        bot, _, _ = self.viewing_bot()
+        self.fix_tap(bot, "vw:1")
+        bot.viewer = lambda n, action, args: (_ for _ in ()).throw(ValueError("out of date"))
+        self.fix_tap(bot, "vc:1:0")
+        self.assertEqual(self.api.sent[-1], "#1: out of date")
+        self.assertIsNotNone(bot.attach.pending)
+        bot.viewer = None
+        self.fix_tap(bot, "vx:1")  # not wired: ignored
+        self.assertIsNotNone(bot.attach.pending)
+
+    def test_viewing_expiry_offers_finish(self):
+        bot, _, _ = self.viewing_bot()
+        self.fix_tap(bot, "vw:1")
+        self.clock.t += 7201
+        bot.tick()
+        self.assertIsNone(bot.attach.pending)
+        self.assertEqual(self.api.buttons[-1], [("✅ Finish viewing", "vf:1")])
+
     def test_usage_command(self):
         self.bot.handle_update(msg(text="/usage"))
         self.assertIn("Last 7 days: nothing", self.api.sent[-1])

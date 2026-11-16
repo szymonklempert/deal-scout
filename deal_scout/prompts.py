@@ -84,6 +84,8 @@ CLAUDE.md. First read these files in {ddir}/: {criteria}checklist.md, card-templ
 Also read listings/market.md if it exists (asking prices from the owner's own listings).
 Then look at every photo in inbox/{nnn}/ and read notes.txt and links.txt if they exist.
 If replies.txt or reply_* images exist there, they are the seller's answers to the owner's questions: read them too.
+If viewing_checks.txt, viewing.txt or viewing_* images exist there, they are the owner's own findings at the viewing:
+read them too.
 
 Write listings/{nnn}.md from {ddir}/card-template.md. In its fit section list what is met, missed and unknown and
 any deal breakers hit, but give no numeric score: a script calculates the score from your criteria checks.
@@ -95,7 +97,8 @@ Do not create or edit any other file (a script updates listings/INDEX.md and the
 INTRO_API = """You are reviewing a listing for a {item} for a private buyer. The buyer's files follow these
 instructions: {criteria}checklist.md, card-template.md{refs}. The listing itself (photos, the owner's notes and links,
 and market prices from the owner's own listings if any) is in the user message.
-The seller's replies, if any, are in the user message too. Use only what you are given.
+The seller's replies and the owner's findings at a viewing, if any, are in the user message too. Use only what you
+are given.
 
 Write the listing card in card_markdown, following card-template.md. In its fit section list what is met, missed and
 unknown and any deal breakers hit, but give no numeric score: a script calculates the score from your criteria checks.
@@ -141,6 +144,9 @@ Then return the structured result:
 - If the seller has replied (replies.txt or reply_* images): their answers override the listing where they differ, and
   what they answered is no longer missing. seller_message and seller_sms then become a short follow-up in {language}:
   thank them and ask only what is still open; if nothing important is open, propose a viewing.
+- If the owner has viewed the {unit} (viewing_checks.txt, viewing.txt or viewing_* images): those findings override
+  the listing and the seller's replies; a problem found is a red flag and lowers the matching spec's score; what was
+  checked and fine is no longer missing.
 - seller_message: a ready-to-send first message to the seller (WhatsApp or Messenger), in {language}, polite and
   plain. It is the first contact, to decide whether the {unit} is worth seeing, so ask only what the seller can
   answer remotely, following the rules above. Greeting, one line saying which {unit} it is about, then numbered
@@ -181,7 +187,8 @@ def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[P
     """Return (system, user_text, image paths) for an API provider.
 
     The system prompt holds the instructions and the domain's files (the same for every listing, so providers can
-    cache them); the listing goes in the user turn. The images are the listing's photos, then the seller's replies.
+    cache them); the listing goes in the user turn. The images are the listing's photos, then the seller's replies,
+    then the owner's viewing photos.
     """
     files = (
         (["criteria.md"] if d.has_criteria() else []) + ["checklist.md", "card-template.md"] + list(d.reference_files)
@@ -198,16 +205,23 @@ def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[P
             user.append(f"{label}:\n{(folder / name).read_text(encoding='utf-8').strip()}")
     if (folder / "replies.txt").exists():
         user.append(f"The seller's replies:\n{(folder / 'replies.txt').read_text(encoding='utf-8').strip()}")
+    for name, label in (
+        ("viewing_checks.txt", "The owner's checklist results from the viewing"),
+        ("viewing.txt", "The owner's notes from the viewing"),
+    ):
+        if (folder / name).exists():
+            user.append(f"{label}:\n{(folder / name).read_text(encoding='utf-8').strip()}")
     market_md = Path(root) / "listings" / "market.md"
     if market_md.exists():
         user.append("Market prices from the owner's own listings:\n" + market_md.read_text(encoding="utf-8").strip())
     photos = sorted(x for x in folder.glob("photo_*") if x.is_file())
     replies = sorted(x for x in folder.glob("reply_*") if x.is_file())
-    if replies:
-        user.append(
-            f"{len(photos)} photo(s) of the listing, then {len(replies)} of the seller's replies, "
-            "are attached, in order."
-        )
+    viewing = sorted(x for x in folder.glob("viewing_[0-9]*") if x.is_file())
+    later = [
+        f"{len(r)} {what}" for r, what in ((replies, "of the seller's replies"), (viewing, "from the viewing")) if r
+    ]
+    if later:
+        user.append(f"{len(photos)} photo(s) of the listing, then {', then '.join(later)}, are attached, in order.")
     else:
         user.append(f"{len(photos)} photo(s) of the listing are attached, in order.")
-    return "\n".join(parts), "\n\n".join(user), photos + replies
+    return "\n".join(parts), "\n\n".join(user), photos + replies + viewing

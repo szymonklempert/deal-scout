@@ -18,7 +18,7 @@ from pathlib import Path
 
 from fakes import FakeAnthropic, FakeOpenAI, FakeRunner
 
-from deal_scout import analysis, config, contact, corrections, domain, library, process, storage
+from deal_scout import analysis, config, contact, corrections, domain, library, process, storage, viewing
 from deal_scout import bot as botmod
 from deal_scout.render import Message
 
@@ -399,6 +399,66 @@ class GoldenTests(unittest.TestCase):
         tap("sa:1")
         bot.run_job(bot.jobs.get_nowait())
         self.check("reply_transcript.txt", message_text(api.sent))
+
+    def test_viewing_transcript(self):
+        api = Recorder()
+        self.listing(1, links="https://example.com/item/1")
+        checks = [
+            "Battery health in settings",
+            "Screen: dead pixels, scratches",
+            "Original charger works",
+            "Serial matches box",
+        ]
+        process.process_listing(
+            self.root,
+            1,
+            settings=self.settings,
+            domain=self.domain,
+            model="opus",
+            runner=FakeRunner(result(viewing_checks=checks)),
+        )
+        worse = result(
+            viewing_checks=checks,
+            missing=[],
+            summary="Battery is worn; negotiate or skip.",
+            criteria_checks=[
+                dict(c, result="missed") if c["criterion"] == "Battery health shown" else c
+                for c in result()["criteria_checks"]
+            ],
+        )
+
+        def processor(n):
+            return process.process_listing(
+                self.root, n, settings=self.settings, domain=self.domain, model="opus", runner=FakeRunner(worse)
+            )
+
+        viewer = functools.partial(viewing.handle, self.root, clock=lambda: 1000.0)
+        bot = botmod.Bot(api, self.root, 1, clock=lambda: 1000.0, processor=processor, viewer=viewer)
+
+        def tap(data):
+            message = {"message_id": 9, "chat": {"id": 1}}
+            bot.handle_update(
+                {"update_id": 2, "callback_query": {"id": "cb", "from": {"id": 1}, "data": data, "message": message}}
+            )
+
+        def say(text=None, photo=None):
+            m = {"from": {"id": 1}, "chat": {"id": 1}, "date": 1000}
+            if text is not None:
+                m["text"] = text
+            if photo:
+                m["photo"] = [{"file_id": photo}]
+            bot.handle_update({"update_id": 1, "message": m})
+
+        tap("vw:1")
+        tap("vc:1:0")
+        tap("vc:1:1")
+        tap("vc:1:1")
+        say(photo="battery screen")
+        say("Battery at 78%, not the 91% the seller said")
+        bot.attach.flush_ack(force=True)
+        tap("vf:1")
+        bot.run_job(bot.jobs.get_nowait())
+        self.check("viewing_transcript.txt", mask(message_text(api.sent)))
 
     def test_corrections_are_logged_without_personal_data(self):
         self.listing(1)
