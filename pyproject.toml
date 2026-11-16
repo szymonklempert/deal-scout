@@ -16,7 +16,7 @@ anthropic = ["anthropic"]  # PROVIDER=anthropic
 openai = ["openai"]        # PROVIDER=openai or openrouter
 
 [dependency-groups]
-dev = ["ruff==0.17.5", "mypy==2.4.1"]
+dev = ["ruff==0.17.5", "mypy==2.4.1", "pytest==9.2.0", "pytest-cov==7.1.0"]
 
 [tool.uv]
 package = false  # an app run from the checkout, not an installable package
@@ -67,3 +67,21 @@ no_implicit_optional = true
 # Optional SDKs, imported lazily by their provider; not installed in CI.
 module = ["anthropic", "anthropic.*", "openai", "openai.*"]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["deal_scout"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 90
+exclude_also = [
+    'if __name__ == "__main__":',
+    'raise AssertionError\("unreachable"\)',
+]
