@@ -93,10 +93,12 @@ def summary_text(
     phone: str | None = None,
     reply_note: str = "",
     stored: bool = False,
+    repost_note: str = "",
 ) -> str:
     """Telegram HTML: header, the fixed spec list (one line each, with a score), then flags and contact.
 
-    reply_note, when given, is a line about what the seller's reply changed; it follows the summary sentence.
+    repost_note, when given, is a line about an earlier listing of the same item; it follows the summary sentence,
+    then comes reply_note, a line about what the seller's reply changed.
     stored: rebuilt from saved data (/show), where the phone is unknown rather than missing from the screenshots.
     """
     price = f"<b>{fmt_int(data['price_pln'])} PLN</b>" if data.get("price_pln") is not None else "price not shown"
@@ -111,8 +113,7 @@ def summary_text(
     head.append(f"Score {sc} · specs <b>{specs_text}</b> · <b>{esc(data.get('verdict', '?'))}</b>")
     if data.get("summary"):
         head.append(f"<i>{esc(data['summary'])}</i>")
-    if reply_note:
-        head.append(reply_note)
+    head.extend(line for line in (repost_note, reply_note) if line)
 
     marks = spec_marks(data)
     spec_lines = []

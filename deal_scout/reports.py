@@ -5,12 +5,12 @@ what is being bought: the compared specs are the domain's own.
 """
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from deal_scout.market import num
+from deal_scout.market import gross_price, num, same_item
 from deal_scout.prompts import Listing
-from deal_scout.render import Message, esc
+from deal_scout.render import Message, esc, fmt_int
 from deal_scout.scoring import ordered_specs
 from deal_scout.storage import Row, is_open
 
@@ -197,3 +197,31 @@ def compare_message(entries: Sequence[Entry], spec_names: Sequence[str]) -> Mess
     if best is not None:
         text += f"\n\nBest overall: #{best.n} ({score_label(best.score)})"
     return Message(text + "\nOpen: " + " · ".join(show_link(e.n) for e in entries), html=True)
+
+
+def price_change(old: float | None, new: float | None) -> str:
+    """Describe a repost's price against the first one: '118 500 → 112 000 PLN (−5%)', 'same price', 'price up 3%'."""
+    if old is None or new is None:
+        return ""
+    if new == old:
+        return "same price"
+    pct = round(100 * (new - old) / old)
+    if pct > 0:
+        return f"price up {pct}%: {fmt_int(old)} → {fmt_int(new)} PLN"
+    shown = f"(−{-pct}%)" if pct < 0 else "(under 1%)"
+    return f"price {fmt_int(old)} → {fmt_int(new)} PLN {shown}"
+
+
+def repost_line(n: int, rows: Mapping[int, Row], same_item_key: str | None, unit: str) -> str:
+    """Return the summary line pointing at an earlier listing of the same item, or '' when there is none.
+
+    The most recent earlier match is the one compared; older ones follow as "(also #3)". Uses market.same_item.
+    """
+    earlier = [m for m in sorted(rows, reverse=True) if m < n and same_item(rows[m], rows[n], same_item_key)]
+    if not earlier:
+        return ""
+    last, others = earlier[0], earlier[1:]
+    seen = f" (first seen {esc(rows[last]['first_seen'])})" if rows[last].get("first_seen") else ""
+    change = price_change(gross_price(rows[last]), gross_price(rows[n]))
+    line = f"🔁 Same {esc(unit)} as #{last}{seen}: {change}" if change else f"🔁 Looks like #{last} again{seen}"
+    return line + (f" (also {', '.join(f'#{m}' for m in others)})" if others else "")

@@ -223,7 +223,7 @@ class GoldenTests(unittest.TestCase):
 
     def test_full_run_files_and_messages(self):
         for n, out in enumerate(self.analyse_fixture_listings(), start=1):
-            self.check(f"summary_{n}.txt", message_text(out))
+            self.check(f"summary_{n}.txt", mask(message_text(out)))
         listings = self.root / "listings"
         self.check("listings.csv", mask(listings.joinpath("listings.csv").read_text(encoding="utf-8-sig")))
         self.check("INDEX.md", listings.joinpath("INDEX.md").read_text(encoding="utf-8"))

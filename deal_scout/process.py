@@ -31,6 +31,7 @@ from deal_scout.inbox import reply_counts
 from deal_scout.prompts import Listing
 from deal_scout.render import Message, esc, plain_text, summary_buttons, summary_text
 from deal_scout.replies import reply_note
+from deal_scout.reports import repost_line
 from deal_scout.storage import Row, csv_fields, csv_row, read_rows, same_seller, write_index, write_rows
 
 log = logging.getLogger("dealscout")
@@ -140,7 +141,8 @@ def summary_message(
     stored: bool = False,
 ) -> Message:
     """Build the summary Telegram message of listing n, from its (overridden) data and its CSV row."""
-    text = summary_text(n, shown, rows[n], domain.specs, same_seller(n, rows), phone, reply_note, stored) + note
+    repost = repost_line(n, rows, domain.market.get("same_item_key"), domain.unit)
+    text = summary_text(n, shown, rows[n], domain.specs, same_seller(n, rows), phone, reply_note, stored, repost) + note
     return Message(text=text[:4000], html=True, buttons=tuple(summary_buttons(n, shown, phone, sheet_link)))
 
 

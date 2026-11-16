@@ -126,5 +126,46 @@ class CompareTests(unittest.TestCase):
         self.assertIn("Solar &amp; co", text)
 
 
+def row(n, price="", first_seen="2026-10-02", **kw):
+    base = {"number": n, "model": "Acme 1", "year": "2021", "seller": "", "price_pln": price, "first_seen": first_seen}
+    base.update(kw)
+    return base
+
+
+class RepostTests(unittest.TestCase):
+    def line(self, rows, n):
+        return reports.repost_line(n, {r["number"]: r for r in rows}, None, "gadget")
+
+    def test_price_drop(self):
+        line = self.line([row(7, 118500), row(9, 112000)], 9)
+        self.assertEqual(line, "🔁 Same gadget as #7 (first seen 2026-10-02): price 118 500 → 112 000 PLN (−5%)")
+
+    def test_price_up_and_same(self):
+        self.assertEqual(
+            self.line([row(7, 112000), row(9, 115400)], 9),
+            "🔁 Same gadget as #7 (first seen 2026-10-02): price up 3%: 112 000 → 115 400 PLN",
+        )
+        self.assertTrue(self.line([row(7, 5000), row(9, 5000)], 9).endswith("): same price"))
+
+    def test_tiny_change_is_not_shown_as_zero_percent(self):
+        self.assertIn("(under 1%)", self.line([row(7, 118500), row(9, 118400)], 9))
+
+    def test_missing_price_or_date(self):
+        self.assertEqual(self.line([row(7, ""), row(9, 5000)], 9), "🔁 Looks like #7 again (first seen 2026-10-02)")
+        self.assertEqual(self.line([row(7, 5000, first_seen=""), row(9, "")], 9), "🔁 Looks like #7 again")
+
+    def test_several_earlier_matches_use_the_latest_and_name_the_rest(self):
+        rows = [row(3, 100), row(7, 100), row(8, 100, model="Other"), row(9, 100)]
+        self.assertTrue(self.line(rows, 9).endswith(" (also #3)"))
+        self.assertIn("as #7 ", self.line(rows, 9))
+
+    def test_later_listings_and_other_items_do_not_count(self):
+        self.assertEqual(self.line([row(7, 100), row(9, 100)], 7), "")
+        self.assertEqual(self.line([row(7, 100, year="2015"), row(9, 100)], 9), "")
+
+    def test_net_prices_compare_gross(self):
+        self.assertTrue(self.line([row(7, 1000, price_net="yes"), row(9, 1230)], 9).endswith("same price"))
+
+
 if __name__ == "__main__":
     unittest.main()
