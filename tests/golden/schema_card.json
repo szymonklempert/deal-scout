@@ -20,6 +20,7 @@
     "red_flags",
     "verdict",
     "summary",
+    "viewing_checks",
     "seller_message",
     "seller_sms",
     "seller_phone",
@@ -208,6 +209,12 @@
     },
     "summary": {
       "type": "string"
+    },
+    "viewing_checks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "seller_message": {
       "type": "string"

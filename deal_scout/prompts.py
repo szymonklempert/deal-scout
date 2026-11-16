@@ -66,6 +66,7 @@ def schema(d: Domain, card: bool = False) -> dict[str, Any]:
         "red_flags": {"type": "array", "items": {"type": "string"}},
         "verdict": {"type": "string", "enum": ["worth a visit", "ask first", "skip"]},
         "summary": {"type": "string"},
+        "viewing_checks": {"type": "array", "items": {"type": "string"}},
         "seller_message": {"type": "string"},
         "seller_sms": {"type": "string"},
         "seller_phone": {"type": ["string", "null"]},
@@ -134,6 +135,9 @@ Then return the structured result:
   words each.
 - red_flags: from checklist.md, the reference files and what the listing shows.
 - summary: one short sentence: the main reason for the verdict.
+- viewing_checks: 8–15 short on-site checks for this {unit}, most important first: the known faults of this model from
+  the reference files, the open questions and red flags to verify in person, and the checklist's on-site items. A few
+  words each, phrased as something to look at or test.
 - If the seller has replied (replies.txt or reply_* images): their answers override the listing where they differ, and
   what they answered is no longer missing. seller_message and seller_sms then become a short follow-up in {language}:
   thank them and ask only what is still open; if nothing important is open, propose a viewing.
