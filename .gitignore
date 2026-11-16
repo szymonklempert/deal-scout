@@ -8,3 +8,4 @@ logs/
 domains/*/criteria.md
 .venv/
 .claude/settings.local.json
+.coverage
