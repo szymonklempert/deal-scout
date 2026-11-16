@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from deal_scout import domain
-from deal_scout.config import ROOT, Settings, load_env
+from deal_scout.config import Settings, load_settings
 from deal_scout.storage import Row, csv_fields, read_rows
 
 
@@ -82,15 +82,14 @@ def push_all(
 
 def main() -> None:
     """Copy every row of listings.csv to the Google Sheet."""
-    load_env(ROOT / ".env")
-    settings = Settings.from_env()
+    home, settings = load_settings()
     if not enabled(settings):
         sys.exit("GOOGLE_SHEET_URL is not set in .env (see deploy/google-sheet.md)")
     try:
-        d = domain.load(settings.domain)
+        d = domain.load(settings.domain, roots=[home])
     except domain.DomainError as exc:
         sys.exit(str(exc))
-    count = push_all(ROOT / "listings" / "listings.csv", csv_fields(d), settings)
+    count = push_all(home / "listings" / "listings.csv", csv_fields(d), settings)
     print(f"Done: {count} listing(s).")
 
 

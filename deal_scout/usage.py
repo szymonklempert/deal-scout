@@ -139,7 +139,7 @@ def summary(path: Path | str, now: float | None = None) -> str:
 
 def main() -> None:
     """Print the usage report."""
-    print(summary(config.ROOT / "logs" / "usage.jsonl"))
+    print(summary(config.data_home() / "logs" / "usage.jsonl"))
 
 
 if __name__ == "__main__":

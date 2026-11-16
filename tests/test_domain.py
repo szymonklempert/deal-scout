@@ -114,3 +114,22 @@ class DomainTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BuiltinRootTests(unittest.TestCase):
+    def test_source_checkout_uses_its_domains_folder(self):
+        self.assertEqual(domain.builtin_root(), config.PACKAGE_DIR.parent / "domains")
+
+    def test_installed_package_uses_its_packaged_domains(self):
+        with tempfile.TemporaryDirectory() as d:
+            pkg = Path(d) / "deal_scout"
+            (pkg / "_domains").mkdir(parents=True)
+            self.assertEqual(domain.builtin_root(pkg), pkg / "_domains")
+
+    def test_the_data_home_comes_before_the_built_in_domains(self):
+        with tempfile.TemporaryDirectory() as d:
+            mine = Path(d) / "domains" / "campervan"
+            mine.mkdir(parents=True)
+            (mine / "domain.json").write_text('{"item": "my van", "specs": ["Price"]}')
+            self.assertEqual(domain.load("campervan", roots=[d]).item, "my van")
+        self.assertNotEqual(domain.load("campervan").item, "my van")

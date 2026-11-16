@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from deal_scout.config import ROOT
+from deal_scout.config import PACKAGE_DIR
 
 
 class DomainError(Exception):
@@ -72,9 +72,16 @@ class Domain:
         return (self.dir / "criteria.md").exists()
 
 
+def builtin_root(package_dir: Path = PACKAGE_DIR) -> Path:
+    """Return the folder of the shipped domains: the package's _domains when installed, else the checkout's."""
+    packaged = package_dir / "_domains"
+    return packaged if packaged.is_dir() else package_dir.parent / "domains"
+
+
 def load(name: str, roots: Iterable[Path | str] | None = None) -> Domain:
-    """Load the domain called `name` from each root's domains/ folder in turn (data folder first, then the code's)."""
-    for root in list(roots or []) + [ROOT]:
-        if (Path(root) / "domains" / name / "domain.json").exists():
-            return Domain.from_dir(Path(root) / "domains" / name)
+    """Load the domain `name` from each root's domains/ folder in turn (the data home first), then the built-in ones."""
+    folders = [Path(root) / "domains" for root in roots or []] + [builtin_root()]
+    for folder in folders:
+        if (folder / name / "domain.json").exists():
+            return Domain.from_dir(folder / name)
     raise DomainError(f"domain {name!r} not found in domains/")

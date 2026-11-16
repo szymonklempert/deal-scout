@@ -114,3 +114,57 @@ class DigestTimeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DataHomeTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = Path(self._tmp.name).resolve()
+        self.checkout = self.tmp / "checkout"
+        (self.checkout / "deal_scout").mkdir(parents=True)
+        (self.checkout / "pyproject.toml").write_text("")
+        self.site = self.tmp / "site-packages"
+        (self.site / "deal_scout").mkdir(parents=True)
+
+    def home(self, environ, package=None):
+        return config.data_home(environ, package_dir=package or self.checkout / "deal_scout", user_home=self.tmp / "me")
+
+    def test_deal_scout_home_wins(self):
+        env = {"DEAL_SCOUT_HOME": str(self.tmp / "a"), "CAMPERVAN_ROOT": str(self.tmp / "b")}
+        self.assertEqual(self.home(env), self.tmp / "a")
+
+    def test_legacy_campervan_root_next(self):
+        self.assertEqual(self.home({"CAMPERVAN_ROOT": str(self.tmp / "b")}), self.tmp / "b")
+        self.assertEqual(self.home({"DEAL_SCOUT_HOME": " ", "CAMPERVAN_ROOT": str(self.tmp / "b")}), self.tmp / "b")
+
+    def test_a_source_checkout_is_its_own_data_home(self):
+        self.assertEqual(self.home({}), self.checkout)
+
+    def test_installed_package_uses_the_dot_folder(self):
+        self.assertEqual(self.home({}, package=self.site / "deal_scout"), self.tmp / "me" / ".deal-scout")
+
+    def test_a_package_folder_with_another_name_is_not_a_checkout(self):
+        (self.checkout / "other").mkdir()
+        self.assertFalse(config.in_checkout(self.checkout / "other"))
+        self.assertTrue(config.in_checkout(self.checkout / "deal_scout"))
+
+    def test_the_real_package_is_run_from_a_checkout_in_development(self):
+        self.assertTrue(config.in_checkout())
+
+    def test_trial_home_only_for_the_legacy_variable_pointing_elsewhere(self):
+        self.assertFalse(config.is_trial_home({}))
+        self.assertTrue(config.is_trial_home({"CAMPERVAN_ROOT": str(self.tmp / "b")}))
+        self.assertFalse(config.is_trial_home({"CAMPERVAN_ROOT": str(config.data_home({}))}))
+        self.assertFalse(config.is_trial_home({"DEAL_SCOUT_HOME": "/x", "CAMPERVAN_ROOT": str(self.tmp / "b")}))
+
+    def test_load_settings_reads_the_env_file_of_the_data_home(self):
+        home = self.tmp / "h"
+        home.mkdir()
+        (home / ".env").write_text("DS_TEST_KEY=1\nDOMAIN=tv\n")
+        old = dict(os.environ)
+        self.addCleanup(lambda: (os.environ.clear(), os.environ.update(old)))
+        os.environ["DEAL_SCOUT_HOME"] = str(home)
+        os.environ.pop("DOMAIN", None)
+        got, settings = config.load_settings()
+        self.assertEqual((got, settings.domain), (home, "tv"))

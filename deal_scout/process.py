@@ -22,7 +22,7 @@ from typing import Any
 from deal_scout import domain as domains
 from deal_scout import market, sheet, storage
 from deal_scout.analysis import analyse
-from deal_scout.config import ROOT, Settings, load_env
+from deal_scout.config import Settings, is_trial_home, load_settings
 from deal_scout.contact import normalise_phone, scrub_phone
 from deal_scout.domain import Domain
 from deal_scout.errors import ProcessError
@@ -206,15 +206,13 @@ def main(argv: Sequence[str]) -> None:
     """Run the analysis of one listing from the command line and print the summary."""
     if len(argv) != 2 or not argv[1].isdigit():
         sys.exit("usage: python3 -m deal_scout.process <listing number>")
-    load_env(ROOT / ".env")
-    settings = Settings.from_env()
-    root = Path(settings.data_root or ROOT)
-    if root.resolve() != ROOT.resolve() and settings.sheet_url:
+    root, settings = load_settings()
+    if is_trial_home() and settings.sheet_url:
         # a trial run on another folder must never write its rows into the real sheet
         settings = dataclasses.replace(settings, sheet_url="")
         print("(CAMPERVAN_ROOT is another folder: not copying to the Google Sheet)", file=sys.stderr)
     try:
-        d = domains.load(settings.domain)
+        d = domains.load(settings.domain, roots=[root])
     except domains.DomainError as exc:
         sys.exit(str(exc))
     try:

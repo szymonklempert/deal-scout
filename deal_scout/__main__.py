@@ -8,13 +8,13 @@ from pathlib import Path
 
 from deal_scout import contact, corrections, digest, domain, library, process, providers, sheet, viewing
 from deal_scout.bot import Bot, log
-from deal_scout.config import ROOT, Settings, load_env
+from deal_scout.config import load_settings
 from deal_scout.telegram import TelegramAPI
 
 
 def setup_logging(root: Path) -> None:
     """Log to the terminal (or systemd journal) and to logs/bot.log (rotated, 3 x 1 MB). Never message contents."""
-    (root / "logs").mkdir(exist_ok=True)
+    (root / "logs").mkdir(parents=True, exist_ok=True)
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s", "%Y-%m-%d %H:%M:%S")
     for handler in (
         logging.StreamHandler(sys.stdout),
@@ -29,37 +29,36 @@ def setup_logging(root: Path) -> None:
 
 def main() -> None:
     """Start the bot: read the settings once, wire the analysis and contact helpers in, and poll Telegram."""
-    setup_logging(ROOT)
-    load_env(ROOT / ".env")
-    settings = Settings.from_env()
+    home, settings = load_settings()
+    setup_logging(home)
     if not settings.telegram_token:
-        sys.exit("TELEGRAM_BOT_TOKEN is not set. Copy .env.example to .env and fill it in.")
+        sys.exit(f"TELEGRAM_BOT_TOKEN is not set. Copy .env.example to {home / '.env'} and fill it in.")
     mode = settings.analysis
     try:
-        d = domain.load(settings.domain)
+        d = domain.load(settings.domain, roots=[home])
     except domain.DomainError as exc:
         sys.exit(str(exc))
 
     digest_time = digest.parse_time(settings.digest_time)
     if digest_time is None and not digest.is_off(settings.digest_time):
         log.warning("DIGEST_TIME is not HH:MM (e.g. 09:00): the morning digest is off")
-    processor = functools.partial(process.process_listing, ROOT, settings=settings, domain=d)
+    processor = functools.partial(process.process_listing, home, settings=settings, domain=d)
     analyse = mode in ("manual", "auto")
     bot = Bot(
         TelegramAPI(settings.telegram_token),
-        ROOT,
+        home,
         settings.allowed_user_id,
         settings.group_window_seconds,
         processor=processor if analyse else None,
         auto_analyse=(mode == "auto"),
-        contact=functools.partial(contact.contact_for, ROOT),
+        contact=functools.partial(contact.contact_for, home),
         sheet_link=sheet.link(settings),
-        seller_text=functools.partial(contact.seller_text, ROOT),
-        fixer=functools.partial(corrections.fix, ROOT, settings=settings, domain=d),
-        reports=functools.partial(library.reports_for, ROOT, settings=settings, domain=d),
-        digest=functools.partial(library.digest_messages, ROOT, domain=d),
+        seller_text=functools.partial(contact.seller_text, home),
+        fixer=functools.partial(corrections.fix, home, settings=settings, domain=d),
+        reports=functools.partial(library.reports_for, home, settings=settings, domain=d),
+        digest=functools.partial(library.digest_messages, home, domain=d),
         digest_time=digest_time,
-        viewer=functools.partial(viewing.handle, ROOT),
+        viewer=functools.partial(viewing.handle, home),
     )
     try:
         provider = providers.name(settings)

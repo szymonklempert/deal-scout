@@ -1,7 +1,11 @@
 """Settings from the environment and the .env file, read once at start-up and passed to whoever needs them.
 
-Entry points call load_env() and then Settings.from_env(); everything else receives the Settings object. Nothing
-else in deal_scout/ reads or writes os.environ (the active domain's name is Settings.domain). Standard library only.
+Entry points call load_settings() (data_home(), load_env(), Settings.from_env()); everything else receives the Settings
+object. Nothing else in deal_scout/ reads or writes os.environ (the active domain's name is Settings.domain).
+Standard library only.
+
+Two places matter: the code (PACKAGE_DIR, where the package is installed) and the data home (data_home(), where the
+owner's .env, .state.json, inbox/, listings/, logs/ and domains/ live).
 """
 
 import os
@@ -9,10 +13,49 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent  # the project root, defined once here
+PACKAGE_DIR = Path(__file__).resolve().parent  # where the code is, wherever it is installed
 DEFAULT_DOMAIN = "campervan"
 SECRET_PREFIXES = ("TELEGRAM_",)
 SECRET_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+
+
+def in_checkout(package_dir: Path = PACKAGE_DIR) -> bool:
+    """Whether the package runs from a source checkout (deal_scout/ next to pyproject.toml)."""
+    return package_dir.name == "deal_scout" and (package_dir.parent / "pyproject.toml").is_file()
+
+
+def data_home(
+    environ: Mapping[str, str] | None = None, *, package_dir: Path = PACKAGE_DIR, user_home: Path | None = None
+) -> Path:
+    """Return the folder with the owner's data.
+
+    In order: DEAL_SCOUT_HOME, the legacy CAMPERVAN_ROOT, the source checkout, ~/.deal-scout.
+
+    Both variables come from the real environment, not .env (the .env file lives inside this folder).
+    """
+    env = os.environ if environ is None else environ
+    for key in ("DEAL_SCOUT_HOME", "CAMPERVAN_ROOT"):
+        if value := (env.get(key) or "").strip():
+            return Path(value).expanduser().resolve()
+    if in_checkout(package_dir):
+        return package_dir.parent
+    return (user_home or Path.home()) / ".deal-scout"
+
+
+def is_trial_home(environ: Mapping[str, str] | None = None) -> bool:
+    """Whether the legacy CAMPERVAN_ROOT points a run at some other folder than the usual data home."""
+    env = os.environ if environ is None else environ
+    if (env.get("DEAL_SCOUT_HOME") or "").strip() or not (env.get("CAMPERVAN_ROOT") or "").strip():
+        return False
+    usual = data_home({k: v for k, v in env.items() if k != "CAMPERVAN_ROOT"})
+    return data_home(env).resolve() != usual.resolve()
+
+
+def load_settings() -> tuple[Path, "Settings"]:
+    """Entry points: find the data home, read its .env into the environment, and return (home, settings)."""
+    home = data_home()
+    load_env(home / ".env")
+    return home, Settings.from_env()
 
 
 def load_env(path: Path) -> None:
@@ -54,7 +97,7 @@ class Settings:
     sheet_url: str = field(default="", repr=False)
     sheet_secret: str = field(default="", repr=False)
     sheet_link: str = ""
-    data_root: str = ""  # CAMPERVAN_ROOT
+    data_root: str = ""  # CAMPERVAN_ROOT (legacy; data_home() decides where the data is)
     domain: str = DEFAULT_DOMAIN
     digest_time: str = "09:00"  # DIGEST_TIME: local "HH:MM" for the morning digest, "off" or empty to disable
     claude_env: Mapping[str, str] = field(default_factory=dict, repr=False, compare=False)

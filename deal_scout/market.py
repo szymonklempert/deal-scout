@@ -252,11 +252,9 @@ def write(listings_dir: Path | str, cfg: Mapping[str, Any]) -> None:
 
 def main() -> None:
     """Rebuild listings/market.md for the active domain and print it."""
-    root = config.ROOT
-    config.load_env(root / ".env")
-    settings = config.Settings.from_env()
+    root, settings = config.load_settings()
     try:
-        cfg = domain.load(settings.domain).market
+        cfg = domain.load(settings.domain, roots=[root]).market
     except domain.DomainError as exc:
         sys.exit(str(exc))
     write(root / "listings", cfg)
