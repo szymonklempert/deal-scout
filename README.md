@@ -34,6 +34,8 @@ to your Google Sheet.
   WhatsApp opens with it typed in, the SMS version copies with a tap.
 - 📨 **Follow-ups handled.** Forward the seller's reply: the listing is re-scored, answered questions drop out, and a
   follow-up (or a viewing request) is drafted.
+- 🔍 **A checklist for the viewing.** Tap 🔍 for an on-site checklist of that item's known faults and open
+  questions. Tick each fine or a problem, send photos and notes as you go, and it is re-scored with your findings.
 - ☀️ **It speaks first.** A morning digest lists sellers still waiting on you, your top listings and market moves;
   a repost of an earlier listing is pointed out with its price change.
 - 📊 **Everything organised.** Each listing lands in a Google Sheet (and a CSV) with its score, specs and your status,
@@ -81,7 +83,7 @@ Needs Python 3.12+ and [Claude Code](https://code.claude.com) logged in (or an A
 | `/top`, `/compare 7 12`, `/show 7` | best open listings; side by side; one summary again (`/show_7` works too) |
 | `/digest` | the morning digest now (it also arrives by itself at `DIGEST_TIME`) |
 | `/status`, `/usage` | is the bot up to date; how much Claude it used |
-| 📨 / 📝 buttons | add the seller's reply; correct a score |
+| 📨 / 🔍 / 📝 buttons | add the seller's reply; open the viewing checklist; correct a score |
 
 ## Development
 

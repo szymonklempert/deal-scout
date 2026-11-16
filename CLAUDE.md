@@ -3,6 +3,8 @@
 The owner collects second-hand listings (screenshots, links, notes) by sending them to a private Telegram bot. The
 bot saves them into `inbox/<NNN>/` (photo_NN.jpg, notes.txt, links.txt). You turn them into decision-ready cards.
 A folder may also hold the seller's answers to the owner's questions: `replies.txt` and `reply_NN.jpg`.
+It may also hold the owner's own findings from seeing the item: `viewing_checks.txt` (what they ticked as fine or a
+problem), `viewing.txt` and `viewing_NN.jpg`. They override the listing and the seller's replies.
 What is being bought is the active domain: `DOMAIN` in `.env` (default `campervan`), with its files in
 `domains/<name>/` (see `domains/README.md`).
 
@@ -82,6 +84,10 @@ anything.
   - `deal_scout/storage.py` the CSV and `INDEX.md`;
   - `deal_scout/render.py` Telegram HTML;
   - `deal_scout/contact.py` phone numbers and seller drafts;
+  - `deal_scout/attach.py` reply mode and viewing mode (messages that belong to an existing listing) and the "saved"
+    confirmation;
+  - `deal_scout/viewing.py` runs a listing's viewing checklist (kept in `listings/NNN.json`);
+  - `deal_scout/viewing_menu.py` the checklist screens, results text and summary line (pure);
   - `deal_scout/replies.py` the summary line about what the seller's reply changed (pure);
   - `deal_scout/corrections.py` applies the owner's Feedback taps to a listing's stored data;
   - `deal_scout/feedback_menu.py` the Feedback screens and their buttons (pure);
