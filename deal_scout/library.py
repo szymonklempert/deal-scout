@@ -51,14 +51,19 @@ def write_snapshot(path: Path, medians: digest.Medians, now: datetime) -> None:
     path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def digest_messages(root: Path, *, domain: Domain, now: datetime | None = None) -> list[Message]:
-    """Build the digest from the stored listings and save the market snapshot the next one compares with."""
+def digest_messages(root: Path, *, domain: Domain, now: datetime | None = None, save: bool = True) -> list[Message]:
+    """Build the digest from the stored listings; with save, keep the market snapshot the next one compares with.
+
+    A digest asked for with /digest passes save=False, so looking during the day doesn't use up the next morning's
+    market moves.
+    """
     now = now or datetime.now()
     rows, entries = read_all(root, domain)
     medians = market.group_medians(list(rows.values()), domain.market)
     path = root / "listings" / "digest.json"
     messages = digest.build(list(entries.values()), now, medians, read_snapshot(path))
-    write_snapshot(path, medians, now)
+    if save:
+        write_snapshot(path, medians, now)
     return messages
 
 

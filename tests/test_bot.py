@@ -692,8 +692,9 @@ class DigestTests(unittest.TestCase):
         self.calls = 0
         self.items = [Message("digest")]
 
-    def digest(self):
+    def digest(self, save):
         self.calls += 1
+        self.saves = getattr(self, "saves", []) + [save]
         return self.items
 
     def make(self, digest_time=(9, 0)):
@@ -744,7 +745,7 @@ class DigestTests(unittest.TestCase):
         self.assertEqual((self.calls, self.api.sent), (1, []))
 
     def test_a_failing_digest_is_not_retried_every_tick(self):
-        def boom():
+        def boom(save):
             self.calls += 1
             raise RuntimeError("no")
 
@@ -758,6 +759,7 @@ class DigestTests(unittest.TestCase):
         bot.handle_update(msg(text="/digest"))
         self.assertEqual(self.api.sent, ["digest"])
         self.assertNotIn("last_digest", bot.state)
+        self.assertEqual(self.saves, [False])  # looking doesn't use up the next morning's market moves
 
     def test_command_with_nothing_to_report(self):
         self.items = []
@@ -768,7 +770,7 @@ class DigestTests(unittest.TestCase):
         botmod.Bot(self.api, self.root, 1, clock=self.clock).handle_update(msg(text="/digest"))
         self.assertEqual(self.api.sent, ["Not available."])
 
-        def boom():
+        def boom(save):
             raise RuntimeError("disk")
 
         bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, digest=boom)

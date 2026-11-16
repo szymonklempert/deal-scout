@@ -186,7 +186,7 @@ class Bot:
         seller_text: Callable[[int, str, str | None], list[Message]] | None = None,
         fixer: Callable[[int, str, list[str]], FixReply] | None = None,
         reports: Callable[[str, Sequence[str]], list[Message]] | None = None,
-        digest: Callable[[], list[Message]] | None = None,
+        digest: Callable[..., list[Message]] | None = None,
         digest_time: tuple[int, int] | None = None,
     ) -> None:
         """Wire the bot to its Telegram API, data folder, allowed user and the optional analysis callbacks."""
@@ -200,7 +200,7 @@ class Bot:
         self.seller_text = seller_text  # callable(n, "msg"|"sms", phone) -> messages for a button tap
         self.fixer = fixer  # callable(n, action, args) -> what to show after a 📝 Feedback tap
         self.reports = reports  # callable(command, args) -> messages for /top, /compare and /show
-        self.digest = digest  # callable() -> the morning digest's messages (none when there is nothing to say)
+        self.digest = digest  # callable(save=...) -> the digest's messages (none when there is nothing to say)
         self.digest_time = digest_time  # (hour, minute) of the daily digest in local time; None means off
         self.pending_reason: PendingReason | None = None  # in memory only; a restart forgets it
         self.attach: PendingAttach | None = None  # reply mode, in memory only
@@ -481,7 +481,7 @@ class Bot:
             self.reply(chat, "Not available.")
             return
         try:
-            items = self.digest()
+            items = self.digest(save=False)
         except Exception as exc:
             log.exception("digest failed")
             self.reply(chat, f"The digest failed: {exc}")
@@ -501,7 +501,7 @@ class Bot:
         self.state["last_digest"] = now.strftime(digest_mod.DATE_FORMAT)
         self.save_state()  # first, so a failing digest is not retried every tick
         try:
-            for item in self.digest():
+            for item in self.digest(save=True):
                 self.send(item)
         except Exception:  # the digest is a bonus: log it and carry on
             log.exception("morning digest failed")

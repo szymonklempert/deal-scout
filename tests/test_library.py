@@ -92,6 +92,12 @@ class LibraryTests(unittest.TestCase):
         self.assertNotIn("Market", first[0].text)  # nothing to compare with yet
         self.assertNotIn("600", json.dumps(snapshot))
 
+    def test_a_digest_asked_for_by_hand_keeps_the_snapshot(self):
+        path = self.root / "listings" / "digest.json"
+        library.write_snapshot(path, {"unknown": (1500.0, 6)}, datetime(2026, 11, 1))
+        library.digest_messages(self.root, domain=self.domain, now=datetime(2026, 11, 16, 12, 0), save=False)
+        self.assertEqual(library.read_snapshot(path), {"unknown": (1500.0, 6)})
+
     def test_digest_market_section_from_an_older_snapshot(self):
         path = self.root / "listings" / "digest.json"
         library.write_snapshot(path, {"unknown": (1500.0, 6)}, datetime(2026, 11, 1))
