@@ -1,5 +1,11 @@
-# deal-scout runs from a checkout (python3 -m deal_scout) and needs only the standard library. uv manages the dev
-# tools and the optional provider SDKs: `uv sync` (dev tools), `uv sync --extra anthropic` (Claude API provider).
+# deal-scout needs only the standard library. Run it from a checkout (python3 -m deal_scout, or `uv run deal-scout`)
+# or install the package (it ships the deal-scout command). uv manages the dev tools and the optional provider SDKs:
+# `uv sync` (dev tools, installs the project editable), `uv sync --extra anthropic` (Claude API provider).
+# Builds must never contain the owner's private files: criteria.md, .env, inbox/, listings/, logs/ (scripts/check_dist.py).
+
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
 
 [project]
 name = "deal-scout"
@@ -18,8 +24,23 @@ openai = ["openai"]        # PROVIDER=openai or openrouter
 [dependency-groups]
 dev = ["ruff==0.17.5", "mypy==2.4.1", "pytest==9.2.0", "pytest-cov==7.1.0", "pre-commit==4.7.0"]
 
-[tool.uv]
-package = false  # an app run from the checkout, not an installable package
+[project.scripts]
+deal-scout = "deal_scout.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["deal_scout"]
+exclude = ["**/criteria.md", "**/__pycache__"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"domains" = "deal_scout/_domains"        # the shipped domains, minus criteria.md (excluded above)
+".env.example" = "deal_scout/_env.example"  # copied to .env by `deal-scout init`
+
+[tool.hatch.build.targets.sdist]
+include = ["/deal_scout", "/domains", "/scripts", "/README.md", "/LICENSE", "/pyproject.toml", "/uv.lock", "/.env.example"]
+exclude = [
+    "**/criteria.md", "**/.env", "**/.state.json", "inbox", "listings", "logs", "IMG_*", ".venv", "_site",
+    "**/__pycache__", "**/*.pyc",
+]
 
 [tool.ruff]
 line-length = 120

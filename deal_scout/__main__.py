@@ -1,4 +1,7 @@
-"""Start the bot: python3 -m deal_scout (settings, domain, logging and the callbacks wired together)."""
+"""Start the bot: python3 -m deal_scout (settings, domain, logging and the callbacks wired together).
+
+The same subcommands as the deal-scout command work here (python3 -m deal_scout init); no arguments start the bot.
+"""
 
 import functools
 import logging
@@ -76,4 +79,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    from deal_scout import cli  # here only: cli imports this module, and `python3 -m deal_scout` runs it as __main__
+
+    cli.main()
