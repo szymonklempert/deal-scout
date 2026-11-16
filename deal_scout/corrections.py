@@ -98,7 +98,7 @@ def log_reason(root: Path, n: int, domain: Domain, args: Sequence[str]) -> FixRe
         "name": args[0],
         "reason": scrub_numbers(args[1]),
     }
-    with storage.ROWS_LOCK:
+    with storage.rows_lock(root / "listings"):
         log_feedback(root / "listings" / "feedback.jsonl", record)
     return FixReply(extra=(Message("Noted."),))
 
@@ -116,7 +116,7 @@ def correct(
 ) -> FixReply:
     """Store one correction, recompute the CSV row, index, market page and sheet, and ask for a reason."""
     listings = root / "listings"
-    with storage.ROWS_LOCK:
+    with storage.rows_lock(root / "listings"):
         data = load_listing(root, n)
         rows = read_rows(listings / "listings.csv")
         if n not in rows:

@@ -1,15 +1,21 @@
 """The listings CSV and the generated INDEX.md.
 
-ROWS_LOCK is the one lock shared by the analysis worker and the polling thread (score corrections): hold it around
-every read-modify-write of listings.csv, INDEX.md and listings/NNN.json.
+rows_lock() is the one lock shared by the analysis worker and the polling thread (score corrections) and, through a
+lock file, by other processes such as the MCP server: hold it around every read-modify-write of listings.csv,
+INDEX.md and listings/NNN.json.
 """
 
 import csv
+import sys
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+
+if sys.platform != "win32":
+    import fcntl
 
 from deal_scout.domain import Domain
 from deal_scout.feedback import corrections_text
@@ -20,8 +26,29 @@ Row = dict[str, Any]  # one listings.csv row
 
 CLOSED_STATUSES = frozenset({"rejected", "sold", "bought", "skip", "closed"})  # statuses of listings no longer in play
 
+LOCK_FILE = ".lock"  # in listings/; created on first use, never removed
+
 # A lock is not "state" in the sense of the no-global-mutable-state rule: it guards files, and holds no data.
-ROWS_LOCK = threading.Lock()
+_THREAD_LOCK = threading.Lock()
+
+
+@contextmanager
+def rows_lock(listings_dir: Path) -> Iterator[None]:
+    """Hold the lock on the listings files: a thread lock, plus an exclusive flock on listings/.lock between processes.
+
+    Without fcntl (Windows) only the thread lock is held. Not re-entrant: never nest it.
+    """
+    with _THREAD_LOCK:
+        if sys.platform == "win32":
+            yield
+            return
+        listings_dir.mkdir(parents=True, exist_ok=True)
+        with open(listings_dir / LOCK_FILE, "a", encoding="utf-8") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle, fcntl.LOCK_UN)  # also released when the file closes
 
 
 def csv_fields(d: Domain) -> list[str]:

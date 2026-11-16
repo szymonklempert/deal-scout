@@ -92,7 +92,7 @@ def apply_review(
         data["replies_seen"] = seen  # lets the next analysis tell whether the seller has replied since
     if viewed := viewing_files(root / "inbox" / nnn):
         data["viewing_seen"] = viewed  # the same for the owner's findings at a viewing
-    with storage.ROWS_LOCK:  # a score correction in the polling thread must not interleave with this update
+    with storage.rows_lock(listings):  # a correction in the bot or another process must not interleave
         previous = read_listing(listings / (nnn + ".json"))
         overrides, dropped = carry_overrides(read_overrides(listings / (nnn + ".json")), data)
         if dropped:

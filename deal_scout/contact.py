@@ -87,7 +87,7 @@ def contact_messages(data: Listing, phone: str | None) -> list[Message]:
 def mark_contacted(root: Path | str, n: int, now: datetime) -> None:
     """Record when the owner first took a draft for the seller in listings/NNN.json ("contacted_at"; no phone)."""
     path = Path(root) / "listings" / f"{n:03d}.json"
-    with storage.ROWS_LOCK:  # an analysis or a correction may be rewriting the same file
+    with storage.rows_lock(Path(root) / "listings"):  # an analysis or a correction may be rewriting the same file
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             if data.get("contacted_at"):

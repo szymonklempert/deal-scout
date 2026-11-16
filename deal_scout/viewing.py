@@ -34,14 +34,14 @@ def stored(data: Listing) -> Viewing:
 
 
 def save(root: Path, n: int, data: Listing) -> None:
-    """Write listing n's data back; the caller holds storage.ROWS_LOCK."""
+    """Write listing n's data back; the caller holds storage.rows_lock."""
     path = root / "listings" / f"{n:03d}.json"
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def start(root: Path, n: int, clock: Callable[[], float]) -> FixReply:
     """Freeze the checklist (or reopen the one already there, marks kept) and show it as a new message."""
-    with storage.ROWS_LOCK:
+    with storage.rows_lock(root / "listings"):
         data = load_listing(root, n)
         if not isinstance(data.get("viewing"), dict):
             items = viewing_items(data)
@@ -57,7 +57,7 @@ def start(root: Path, n: int, clock: Callable[[], float]) -> FixReply:
 
 def toggle(root: Path, n: int, args: Sequence[str]) -> FixReply:
     """Cycle one item's mark and edit the checklist in place."""
-    with storage.ROWS_LOCK:
+    with storage.rows_lock(root / "listings"):
         data = load_listing(root, n)
         viewing = stored(data)
         try:

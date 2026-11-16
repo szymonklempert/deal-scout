@@ -19,7 +19,7 @@ from deal_scout.storage import Row, read_rows
 def read_all(root: Path, domain: Domain) -> tuple[dict[int, Row], dict[int, Entry]]:
     """Read listings.csv and every listing's JSON: the CSV rows, and an Entry per row with corrections applied."""
     listings = root / "listings"
-    with storage.ROWS_LOCK:  # an analysis or a correction must not rewrite the files while they are read
+    with storage.rows_lock(listings):  # an analysis or a correction must not rewrite the files while they are read
         rows = read_rows(listings / "listings.csv")
         stored = {n: read_listing(listings / f"{n:03d}.json") for n in rows}
     out: dict[int, Entry] = {}
@@ -72,7 +72,7 @@ def show(root: Path, args: Sequence[str], *, settings: Settings, domain: Domain)
     numbers = reports.parse_numbers(args[:1])
     if not numbers:
         raise ProcessError("Usage: /show 7")
-    with storage.ROWS_LOCK:
+    with storage.rows_lock(root / "listings"):
         return [stored_summary(root, numbers[0], domain, settings, stored=True)]
 
 
