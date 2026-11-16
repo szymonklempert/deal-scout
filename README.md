@@ -93,6 +93,14 @@ Needs Python 3.12+ and [Claude Code](https://code.claude.com) logged in (or an A
 
 ## Use it from Claude (MCP)
 
+The same engine as an MCP server: Telegram is for your phone, MCP is for working at your desk.
+
+- **Talk to your whole archive.** "Which listings under 90k have LiFePO4 and a fixed bed?", "compare #7 and #12",
+  "draft a follow-up for #9": Claude calls the tools and reasons over the results.
+- **Same rules, same scores.** Claude only judges; deal-scout validates the review and computes the score, so a
+  listing reviewed in Claude lands in the same archive, Google Sheet, `/top` and digest as one sent to the bot.
+- **No API key, no extra cost.** It runs inside your Claude plan; the server itself makes no model calls.
+
 `uv sync --extra mcp`, then add the server (it uses the same data folder as the bot):
 
 ```sh
