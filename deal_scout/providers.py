@@ -11,6 +11,7 @@ for every listing, so providers can cache it), the listing's notes, links and ph
 structured result comes back as JSON, including the card's text (card_markdown), which analysis.py writes to disk.
 The SDKs are imported only when their provider is chosen, so the bot itself stays standard-library only.
 """
+
 import base64
 import json
 import time
@@ -63,8 +64,13 @@ def image_blocks(paths: Iterable[Path]) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     for p in paths:
         ext = p.suffix.lower().lstrip(".")
-        media = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp",
-                 "gif": "image/gif"}.get(ext, "image/jpeg")
+        media = {
+            "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "png": "image/png",
+            "webp": "image/webp",
+            "gif": "image/gif",
+        }.get(ext, "image/jpeg")
         out.append((media, base64.standard_b64encode(p.read_bytes()).decode("ascii")))
     return out
 
@@ -78,9 +84,15 @@ def price(tokens_in: int, tokens_out: int, price_per_mtok: str) -> float | None:
     return round((tokens_in * pin + tokens_out * pout) / 1e6, 4)
 
 
-def call_anthropic(model: str, system: str, user_text: str, images: Iterable[tuple[str, str]],
-                   schema: dict[str, Any], effort: str = "medium",
-                   client: Any = None) -> tuple[dict[str, Any], RunStats]:
+def call_anthropic(
+    model: str,
+    system: str,
+    user_text: str,
+    images: Iterable[tuple[str, str]],
+    schema: dict[str, Any],
+    effort: str = "medium",
+    client: Any = None,
+) -> tuple[dict[str, Any], RunStats]:
     """Claude API: streaming (long output), structured output, cached system prompt, refusal fallback where offered."""
     if client is None:
         try:
@@ -89,7 +101,8 @@ def call_anthropic(model: str, system: str, user_text: str, images: Iterable[tup
             raise ProviderError("PROVIDER=anthropic needs the SDK: pip install anthropic") from exc
         client = anthropic.Anthropic()  # ANTHROPIC_API_KEY from the environment
     content: list[dict[str, Any]] = [
-        {"type": "image", "source": {"type": "base64", "media_type": m, "data": d}} for m, d in images]
+        {"type": "image", "source": {"type": "base64", "media_type": m, "data": d}} for m, d in images
+    ]
     content.append({"type": "text", "text": user_text})
     output_config: dict[str, Any] = {"format": {"type": "json_schema", "schema": schema}}
     if effort and effort != "none":
@@ -103,8 +116,9 @@ def call_anthropic(model: str, system: str, user_text: str, images: Iterable[tup
     )
     t0 = time.time()
     if model in FALLBACK_MODELS:
-        with client.beta.messages.stream(betas=["server-side-fallback-2026-07-01"], fallbacks="default",
-                                         **kwargs) as stream:
+        with client.beta.messages.stream(
+            betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kwargs
+        ) as stream:
             msg = stream.get_final_message()
     else:
         with client.messages.stream(**kwargs) as stream:
@@ -118,14 +132,26 @@ def call_anthropic(model: str, system: str, user_text: str, images: Iterable[tup
     u = msg.usage
     cached = getattr(u, "cache_read_input_tokens", 0) or 0
     tokens_in = (u.input_tokens or 0) + cached + (getattr(u, "cache_creation_input_tokens", 0) or 0)
-    return parse_json(text), {"model": getattr(msg, "model", model), "input_tokens": tokens_in,
-                              "cached_tokens": cached, "output_tokens": u.output_tokens or 0,
-                              "duration_s": round(time.time() - t0, 1), "turns": 1}
+    return parse_json(text), {
+        "model": getattr(msg, "model", model),
+        "input_tokens": tokens_in,
+        "cached_tokens": cached,
+        "output_tokens": u.output_tokens or 0,
+        "duration_s": round(time.time() - t0, 1),
+        "turns": 1,
+    }
 
 
-def call_openai(model: str, system: str, user_text: str, images: Iterable[tuple[str, str]],
-                schema: dict[str, Any], base_url: str | None = None, api_key: str | None = None,
-                client: Any = None) -> tuple[dict[str, Any], RunStats]:
+def call_openai(
+    model: str,
+    system: str,
+    user_text: str,
+    images: Iterable[tuple[str, str]],
+    schema: dict[str, Any],
+    base_url: str | None = None,
+    api_key: str | None = None,
+    client: Any = None,
+) -> tuple[dict[str, Any], RunStats]:
     """OpenAI Chat Completions with a strict JSON schema; also used for OpenRouter (OpenAI-compatible)."""
     if client is None:
         try:
@@ -134,14 +160,17 @@ def call_openai(model: str, system: str, user_text: str, images: Iterable[tuple[
             raise ProviderError("this provider needs the SDK: pip install openai") from exc
         client = openai.OpenAI(base_url=base_url, api_key=api_key) if base_url else openai.OpenAI()
     content: list[dict[str, Any]] = [
-        {"type": "image_url", "image_url": {"url": f"data:{m};base64,{d}"}} for m, d in images]
+        {"type": "image_url", "image_url": {"url": f"data:{m};base64,{d}"}} for m, d in images
+    ]
     content.append({"type": "text", "text": user_text})
     t0 = time.time()
     resp = client.chat.completions.create(
         model=model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": content}],
-        response_format={"type": "json_schema",
-                         "json_schema": {"name": "listing_review", "strict": True, "schema": schema}},
+        response_format={
+            "type": "json_schema",
+            "json_schema": {"name": "listing_review", "strict": True, "schema": schema},
+        },
     )
     choice = resp.choices[0]
     if getattr(choice.message, "refusal", None):
@@ -151,9 +180,13 @@ def call_openai(model: str, system: str, user_text: str, images: Iterable[tuple[
     u = resp.usage
     details = getattr(u, "prompt_tokens_details", None)
     stats: RunStats = {
-        "model": getattr(resp, "model", model), "input_tokens": u.prompt_tokens or 0,
+        "model": getattr(resp, "model", model),
+        "input_tokens": u.prompt_tokens or 0,
         "cached_tokens": (getattr(details, "cached_tokens", 0) or 0) if details else 0,
-        "output_tokens": u.completion_tokens or 0, "duration_s": round(time.time() - t0, 1), "turns": 1}
+        "output_tokens": u.completion_tokens or 0,
+        "duration_s": round(time.time() - t0, 1),
+        "turns": 1,
+    }
     if getattr(u, "cost", None) is not None:  # OpenRouter reports the cost of the call
         stats["cost_usd"] = float(u.cost)
     return parse_json(choice.message.content or ""), stats
@@ -170,8 +203,16 @@ def parse_json(text: str) -> dict[str, Any]:
     return data
 
 
-def call(provider: str, model: str, system: str, user_text: str, images: Iterable[tuple[str, str]],
-         schema: dict[str, Any], settings: Settings, client: Any = None) -> tuple[dict[str, Any], RunStats]:
+def call(
+    provider: str,
+    model: str,
+    system: str,
+    user_text: str,
+    images: Iterable[tuple[str, str]],
+    schema: dict[str, Any],
+    settings: Settings,
+    client: Any = None,
+) -> tuple[dict[str, Any], RunStats]:
     """Run one structured-output request on the chosen API provider and return the card with its run stats."""
     if provider == "anthropic":
         return call_anthropic(model, system, user_text, images, schema, effort=settings.effort, client=client)
@@ -181,6 +222,7 @@ def call(provider: str, model: str, system: str, user_text: str, images: Iterabl
         key = settings.openrouter_api_key
         if not key and client is None:
             raise ProviderError("set OPENROUTER_API_KEY in .env")
-        return call_openai(model, system, user_text, images, schema, base_url=OPENROUTER_URL, api_key=key,
-                           client=client)
+        return call_openai(
+            model, system, user_text, images, schema, base_url=OPENROUTER_URL, api_key=key, client=client
+        )
     raise ProviderError(f"{provider} is not an API provider")

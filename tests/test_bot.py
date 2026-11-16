@@ -89,16 +89,17 @@ class BotTests(unittest.TestCase):
         folders = sorted(p.name for p in (self.root / "inbox").iterdir())
         self.assertEqual(folders, ["001"])
         self.assertEqual(len(list((self.root / "inbox/001").glob("photo_*"))), 1)
-        self.assertIn("https://www.facebook.com/marketplace/item/123",
-                      (self.root / "inbox/001/links.txt").read_text())
+        self.assertIn("https://www.facebook.com/marketplace/item/123", (self.root / "inbox/001/links.txt").read_text())
         self.assertIn("#1: 1 photo(s), 1 link(s)", self.api.sent[-1])
 
     def test_photo_that_cannot_be_downloaded_is_reported_and_the_rest_kept(self):
         self.bot.handle_update(msg(photo="a", group="g"))
         self.bot.handle_update(msg(photo="lost-b", group="g"))
         self.bot.handle_update(msg(photo="c", group="g", caption="https://example.com/x"))
-        self.assertEqual(self.api.sent, ["#1: 1 photo(s) couldn't be downloaded (Telegram didn't answer in time). "
-                                         "Please send it again."])
+        self.assertEqual(
+            self.api.sent,
+            ["#1: 1 photo(s) couldn't be downloaded (Telegram didn't answer in time). Please send it again."],
+        )
         self.clock.t += 3
         self.bot.tick()
         self.assertEqual(len(list((self.root / "inbox/001").glob("photo_*"))), 2)
@@ -132,8 +133,9 @@ class BotTests(unittest.TestCase):
         bot, _ = self.analysing_bot()
         bot.handle_update(msg(photo="a"))
         bot.handle_update(msg(text="/done"))
-        self.assertEqual(self.api.sent[:2], ["#1: 1 photo(s), 0 link(s) saved.",
-                                             "#1: analysing, usually about a minute..."])
+        self.assertEqual(
+            self.api.sent[:2], ["#1: 1 photo(s), 0 link(s) saved.", "#1: analysing, usually about a minute..."]
+        )
 
     def test_new_listing_confirms_the_previous_one(self):
         self.bot.handle_update(msg(photo="a"))
@@ -166,8 +168,10 @@ class BotTests(unittest.TestCase):
                 raise RuntimeError("claude not found")
             done.append(n)
             return [f"#{n} analysed", "Dzień dobry"] if n == 2 else f"#{n} analysed"
-        bot = botmod.Bot(self.api, self.root, 1, window_seconds=180, clock=self.clock, processor=processor,
-                         auto_analyse=auto)
+
+        bot = botmod.Bot(
+            self.api, self.root, 1, window_seconds=180, clock=self.clock, processor=processor, auto_analyse=auto
+        )
         return bot, done
 
     def drain(self, bot):
@@ -204,16 +208,26 @@ class BotTests(unittest.TestCase):
 
     def test_whatsapp_button_is_sent(self):
         bot, _ = self.analysing_bot()
-        bot.send(Message("Dzień dobry", buttons=(("Send on WhatsApp", "https://wa.me/48600123456?text=x"),),
-                         fallback_url="https://wa.me/48600123456"))
+        bot.send(
+            Message(
+                "Dzień dobry",
+                buttons=(("Send on WhatsApp", "https://wa.me/48600123456?text=x"),),
+                fallback_url="https://wa.me/48600123456",
+            )
+        )
         self.assertEqual(self.api.sent, ["Dzień dobry"])
         self.assertEqual(self.api.buttons[0][0][1], "https://wa.me/48600123456?text=x")
 
     def test_refused_button_falls_back_to_plain_link(self):
         self.api.refuse_buttons = True
         bot, _ = self.analysing_bot()
-        bot.send(Message("Dzień dobry", buttons=(("Send on WhatsApp", "https://wa.me/1?text=x"),),
-                         fallback_url="https://wa.me/48600123456"))
+        bot.send(
+            Message(
+                "Dzień dobry",
+                buttons=(("Send on WhatsApp", "https://wa.me/1?text=x"),),
+                fallback_url="https://wa.me/48600123456",
+            )
+        )
         self.assertEqual(self.api.sent[0], "Dzień dobry")
         self.assertIn("https://wa.me/48600123456", self.api.sent[1])
 
@@ -251,13 +265,15 @@ class BotTests(unittest.TestCase):
         def seller_text(n, kind, phone):
             calls.append((n, kind, phone))
             return [Message(f"{kind} for #{n}")]
+
         bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, seller_text=seller_text)
         return bot, calls
 
     def test_tap_on_message_button_sends_the_draft(self):
         bot, calls = self.tap_bot()
-        bot.handle_update({"update_id": 5, "callback_query": {"id": "c1", "from": {"id": 1},
-                                                              "data": "msg:7:48600123456"}})
+        bot.handle_update(
+            {"update_id": 5, "callback_query": {"id": "c1", "from": {"id": 1}, "data": "msg:7:48600123456"}}
+        )
         bot.handle_update({"update_id": 6, "callback_query": {"id": "c2", "from": {"id": 1}, "data": "sms:7"}})
         self.assertEqual(calls, [(7, "msg", "48600123456"), (7, "sms", None)])
         self.assertEqual(self.api.sent, ["msg for #7", "sms for #7"])
@@ -276,8 +292,13 @@ class BotTests(unittest.TestCase):
     def test_callback_buttons_are_not_listed_in_plain_fallback(self):
         self.api.refuse_buttons = True
         bot, _ = self.analysing_bot()
-        bot.send(Message("<b>#1</b>", html=True, buttons=(("💬 WhatsApp message", "msg:1:"),
-                                                          ("📊 Open sheet", "https://docs.google.com/x"))))
+        bot.send(
+            Message(
+                "<b>#1</b>",
+                html=True,
+                buttons=(("💬 WhatsApp message", "msg:1:"), ("📊 Open sheet", "https://docs.google.com/x")),
+            )
+        )
         self.assertEqual(self.api.sent, ["#1", "📊 Open sheet: https://docs.google.com/x"])
 
     def test_edit_changes_a_message_in_place(self):
@@ -297,14 +318,26 @@ class BotTests(unittest.TestCase):
             calls.append((n, action, args))
             if action == "reason":
                 return FixReply(extra=(Message("Noted."),))
-            return FixReply(Message("menu", buttons=(("A", f"fb:{n}"),), columns=3), edit=action != "open",
-                            ask_reason="Solar" if ask and action == "value" else None)
+            return FixReply(
+                Message("menu", buttons=(("A", f"fb:{n}"),), columns=3),
+                edit=action != "open",
+                ask_reason="Solar" if ask and action == "value" else None,
+            )
+
         return botmod.Bot(self.api, self.root, 1, clock=self.clock, fixer=fixer), calls
 
     def fix_tap(self, bot, data, user=1, message_id=77):
-        bot.handle_update({"update_id": 5, "callback_query": {
-            "id": "c", "from": {"id": user}, "data": data,
-            "message": {"message_id": message_id, "chat": {"id": 1}}}})
+        bot.handle_update(
+            {
+                "update_id": 5,
+                "callback_query": {
+                    "id": "c",
+                    "from": {"id": user},
+                    "data": data,
+                    "message": {"message_id": message_id, "chat": {"id": 1}},
+                },
+            }
+        )
 
     def test_stranger_fix_tap_is_ignored(self):
         bot, calls = self.fix_bot()
@@ -324,6 +357,7 @@ class BotTests(unittest.TestCase):
 
         def broken(n, action, args):
             raise ValueError("#1 has not been analysed yet")
+
         bot.fixer = broken
         self.fix_tap(bot, "fx:1")
         self.assertEqual(self.api.sent, ["#1: #1 has not been analysed yet"])
@@ -395,8 +429,10 @@ class BotTests(unittest.TestCase):
         self.fix_tap(bot, "fv:1:0:3")
         self.tap_reply(bot, "sr:1")
         self.assertIsNone(bot.pending_reason)
-        self.assertEqual(self.api.sent[-1], "📨 #1: send the seller's reply: paste the text or send screenshots. "
-                                           "Tap Re-analyse when done.")
+        self.assertEqual(
+            self.api.sent[-1],
+            "📨 #1: send the seller's reply: paste the text or send screenshots. Tap Re-analyse when done.",
+        )
         self.assertEqual(self.api.buttons[-1], [("✅ Re-analyse", "sa:1"), ("Cancel", "sc:1")])
         bot.handle_update(msg(text="late reason"))
         self.assertEqual([c[1] for c in calls], ["value"])  # taken as the seller's reply, not as a reason
@@ -438,8 +474,10 @@ class BotTests(unittest.TestCase):
         bot.handle_update(msg(text="answer"))
         self.tap_reply(bot, "sa:1")
         self.assertIsNone(bot.attach)
-        self.assertEqual(self.api.sent[-2:], ["📨 #1: 0 photo(s), 1 text(s) saved as the seller's reply.",
-                                              "#1: analysing, usually about a minute..."])
+        self.assertEqual(
+            self.api.sent[-2:],
+            ["📨 #1: 0 photo(s), 1 text(s) saved as the seller's reply.", "#1: analysing, usually about a minute..."],
+        )
         self.tap_reply(bot, "sr:1")
         bot.handle_update(msg(text="/done"))
         self.assertIsNone(bot.attach)
@@ -480,8 +518,9 @@ class BotTests(unittest.TestCase):
         self.clock.t += 901
         bot.tick()
         self.assertIsNone(bot.attach)
-        self.assertEqual(self.api.sent[-1], "📨 #1: reply mode ended after 15 minutes of quiet. "
-                                           "Re-analyse when you're ready:")
+        self.assertEqual(
+            self.api.sent[-1], "📨 #1: reply mode ended after 15 minutes of quiet. Re-analyse when you're ready:"
+        )
         self.assertEqual(self.api.buttons[-1], [("✅ Re-analyse", "sa:1")])
         self.assertTrue(bot.jobs.empty())
 
@@ -515,7 +554,9 @@ class BotTests(unittest.TestCase):
     def test_sheet_command(self):
         self.bot.handle_update(msg(text="/sheet"))
         self.assertIn("GOOGLE_SHEET_LINK", self.api.sent[-1])
-        bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, sheet_link="https://docs.google.com/spreadsheets/d/a")
+        bot = botmod.Bot(
+            self.api, self.root, 1, clock=self.clock, sheet_link="https://docs.google.com/spreadsheets/d/a"
+        )
         bot.handle_update(msg(text="/sheet"))
         self.assertEqual(self.api.buttons[-1], [("📊 Open sheet", "https://docs.google.com/spreadsheets/d/a")])
 
@@ -531,6 +572,7 @@ class BotTests(unittest.TestCase):
         def contact(n, phone):
             calls.append((n, phone))
             return [Message("Dzień dobry", buttons=(("Send on WhatsApp", "https://wa.me/48600123456?text=x"),))]
+
         bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, contact=contact)
         bot.handle_update(msg(text="/phone 7 600 123 456"))
         self.assertEqual(calls, [(7, "600 123 456")])
@@ -542,6 +584,7 @@ class BotTests(unittest.TestCase):
     def test_phone_command_error_is_reported(self):
         def contact(n, phone):
             raise ValueError("#7 has not been analysed yet")
+
         bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, contact=contact)
         bot.handle_update(msg(text="/phone 7 600123456"))
         self.assertIn("not been analysed", self.api.sent[-1])

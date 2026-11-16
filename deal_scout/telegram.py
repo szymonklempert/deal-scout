@@ -1,4 +1,5 @@
 """The few Telegram Bot API calls the bot uses: outgoing HTTPS only (long polling, no open ports)."""
+
 import http.client
 import json
 import time
@@ -43,20 +44,36 @@ class TelegramAPI:
         if buttons:  # [(label, url), ...] shown as link buttons under the message
             # (label, "https://...") opens a link; (label, "msg:7:...") is a tap the bot answers in handle_callback
             keys: list[dict[str, str]] = [
-                {"text": label, "url": value} if value.startswith("https://") else
-                {"text": label, "callback_data": value[:64]} for label, value in buttons]
+                {"text": label, "url": value}
+                if value.startswith("https://")
+                else {"text": label, "callback_data": value[:64]}
+                for label, value in buttons
+            ]
             width = max(1, columns)
-            params["reply_markup"] = {"inline_keyboard": [keys[i:i + width] for i in range(0, len(keys), width)]}
+            params["reply_markup"] = {"inline_keyboard": [keys[i : i + width] for i in range(0, len(keys), width)]}
         return params
 
-    def send_message(self, chat_id: int | None, text: str, buttons: list[tuple[str, str]] | None = None,
-                     html: bool = False, columns: int = 1) -> None:
+    def send_message(
+        self,
+        chat_id: int | None,
+        text: str,
+        buttons: list[tuple[str, str]] | None = None,
+        html: bool = False,
+        columns: int = 1,
+    ) -> None:
         """Send a text, optionally HTML-formatted and with link or callback buttons, `columns` to a row."""
         params = self._message_params(text, buttons, html, columns)
         self.call("sendMessage", {"chat_id": chat_id, **params})
 
-    def edit_message(self, chat_id: int | None, message_id: int, text: str,
-                     buttons: list[tuple[str, str]] | None = None, html: bool = False, columns: int = 1) -> None:
+    def edit_message(
+        self,
+        chat_id: int | None,
+        message_id: int,
+        text: str,
+        buttons: list[tuple[str, str]] | None = None,
+        html: bool = False,
+        columns: int = 1,
+    ) -> None:
         """Replace the text and buttons of a message the bot sent earlier (editMessageText)."""
         params = self._message_params(text, buttons, html, columns)
         self.call("editMessageText", {"chat_id": chat_id, "message_id": message_id, **params})

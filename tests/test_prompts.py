@@ -1,4 +1,5 @@
 """The prompt and the JSON schema."""
+
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +13,7 @@ class SchemaTests(unittest.TestCase):
     def test_strict_mode_rules_hold_everywhere(self):
         """OpenAI strict mode and Anthropic structured outputs: every object closed with all keys required, enums
         typed, no numeric limits."""
+
         def walk(node, path="$"):
             if isinstance(node, dict):
                 if node.get("type") == "object":
@@ -26,6 +28,7 @@ class SchemaTests(unittest.TestCase):
             elif isinstance(node, list):
                 for i, v in enumerate(node):
                     walk(v, f"{path}[{i}]")
+
         walk(prompts.schema(CAMPERVAN, card=True))
 
 
@@ -53,8 +56,9 @@ class ApiRequestTests(unittest.TestCase):
         (self.folder / "reply_01.jpg").write_bytes(b"r1")
         _, user, images = self.request()
         self.assertLess(user.index("Links:"), user.index("The seller's replies:\n[2026-01-01 10:00] VIN is ABC"))
-        self.assertTrue(user.endswith("2 photo(s) of the listing, then 1 of the seller's replies, are attached, "
-                                      "in order."))
+        self.assertTrue(
+            user.endswith("2 photo(s) of the listing, then 1 of the seller's replies, are attached, in order.")
+        )
         self.assertEqual([p.name for p in images], ["photo_01.jpg", "photo_02.jpg", "reply_01.jpg"])
 
 

@@ -8,6 +8,7 @@ Telegram summary, contact.py handles the seller's phone number and message draft
 the market prices and the Google Sheet. Nothing here is specific to what is being bought: that comes from the domain
 (deal_scout/domain.py). Standard library only.
 """
+
 import dataclasses
 import functools
 import json
@@ -36,9 +37,17 @@ log = logging.getLogger("dealscout")
 log.addHandler(logging.NullHandler())  # quiet unless setup_logging() adds real handlers
 
 
-def process_listing(root: Path | str, n: int, *, settings: Settings, domain: Domain, model: str | None = None,
-                    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
-                    pusher: Callable[..., None] | None = None, client: Any = None) -> list[Message]:
+def process_listing(
+    root: Path | str,
+    n: int,
+    *,
+    settings: Settings,
+    domain: Domain,
+    model: str | None = None,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    pusher: Callable[..., None] | None = None,
+    client: Any = None,
+) -> list[Message]:
     """Analyse inbox listing n and update its card, the CSV, the index, the market page and the sheet."""
     root = Path(root)
     nnn = f"{n:03d}"
@@ -119,8 +128,16 @@ def sheet_note(row: Row, domain: Domain, settings: Settings, pusher: Callable[..
     return ""
 
 
-def summary_message(n: int, shown: Listing, rows: dict[int, Row], domain: Domain, phone: str | None,
-                    sheet_link: str | None, note: str = "", reply_note: str = "") -> Message:
+def summary_message(
+    n: int,
+    shown: Listing,
+    rows: dict[int, Row],
+    domain: Domain,
+    phone: str | None,
+    sheet_link: str | None,
+    note: str = "",
+    reply_note: str = "",
+) -> Message:
     """Build the summary Telegram message of listing n, from its (overridden) data and its CSV row."""
     text = summary_text(n, shown, rows[n], domain.specs, same_seller(n, rows), phone, reply_note) + note
     return Message(text=text[:4000], html=True, buttons=tuple(summary_buttons(n, shown, phone, sheet_link)))
@@ -153,8 +170,7 @@ def main(argv: Sequence[str]) -> None:
         sys.exit(str(exc))
     try:
         out = process_listing(root, int(argv[1]), settings=settings, domain=d)
-        print("\n\n-----\n".join(plain_text(m.text) + "".join(f"\n[{b[0]}: {b[1]}]" for b in m.buttons)
-                                   for m in out))
+        print("\n\n-----\n".join(plain_text(m.text) + "".join(f"\n[{b[0]}: {b[1]}]" for b in m.buttons) for m in out))
     except ProcessError as exc:
         sys.exit(str(exc))
 

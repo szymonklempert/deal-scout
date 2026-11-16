@@ -1,4 +1,5 @@
 """Shared test helpers: a canned model result, fake Claude Code / Anthropic / OpenAI backends. No tests here."""
+
 import json
 import subprocess
 from contextlib import contextmanager
@@ -25,17 +26,23 @@ RESULT = {
     "price_net": False,
     "fair_price_low": 105000,
     "fair_price_high": 115000,
-    "specs": [{"name": "Year", "value": "2014", "score": 6}, {"name": "Solar & batteries", "value": "Victron 400 W",
-                                                               "score": 8},
-              {"name": "Mileage", "value": "not shown", "score": 3}],
+    "specs": [
+        {"name": "Year", "value": "2014", "score": 6},
+        {"name": "Solar & batteries", "value": "Victron 400 W", "score": 8},
+        {"name": "Mileage", "value": "not shown", "score": 3},
+    ],
     "source": "Kampery i campervany na sprzedaż",
     "price_pln": 118500,
     "model": "Fiat Ducato 2.3",
     "year": 2014,
     "mileage_km": 196000,
     "facts": [{"field": "Weight (DMC)", "value": "not shown", "certainty": "not shown"}],
-    "criteria_checks": [check("Budget", "met", True), check("Fixed bed", "met"), check("Toilet", "unknown"),
-                        check("Solar", "missed")],
+    "criteria_checks": [
+        check("Budget", "met", True),
+        check("Fixed bed", "met"),
+        check("Toilet", "unknown"),
+        check("Solar", "missed"),
+    ],
     "missing": ["VIN", "DMC"],
     "red_flags": ["Urgent sale"],
     "verdict": "ask first",
@@ -52,8 +59,13 @@ class FakeRunner:
 
     def __init__(self, structured=RESULT, stdout=None, returncode=0):
         self.calls = []
-        self.stdout = stdout if stdout is not None else json.dumps(
-            {"type": "result", "subtype": "success", "is_error": False, "structured_output": structured})
+        self.stdout = (
+            stdout
+            if stdout is not None
+            else json.dumps(
+                {"type": "result", "subtype": "success", "is_error": False, "structured_output": structured}
+            )
+        )
         self.returncode = returncode
 
     def __call__(self, cmd, **kw):
@@ -71,16 +83,22 @@ def answer(**extra):
 class FakeAnthropic:
     def __init__(self, text=None, stop_reason="end_turn"):
         self.calls = []
-        msg = Ns(stop_reason=stop_reason, model="claude-opus-5-5", stop_details=Ns(category="cyber"),
-                 content=[Ns(type="thinking", thinking=""), Ns(type="text", text=text or answer())],
-                 usage=Ns(input_tokens=1200, cache_read_input_tokens=8000, cache_creation_input_tokens=0,
-                          output_tokens=5000))
+        msg = Ns(
+            stop_reason=stop_reason,
+            model="claude-opus-5-5",
+            stop_details=Ns(category="cyber"),
+            content=[Ns(type="thinking", thinking=""), Ns(type="text", text=text or answer())],
+            usage=Ns(
+                input_tokens=1200, cache_read_input_tokens=8000, cache_creation_input_tokens=0, output_tokens=5000
+            ),
+        )
 
         def stream(kind):
             @contextmanager
             def run(**kw):
                 self.calls.append((kind, kw))
                 yield Ns(get_final_message=lambda: msg)
+
             return run
 
         self.messages = Ns(stream=stream("plain"))
@@ -93,10 +111,14 @@ class FakeOpenAI:
         usage_ = Ns(prompt_tokens=9000, completion_tokens=4000, prompt_tokens_details=Ns(cached_tokens=6000))
         if cost is not None:
             usage_.cost = cost
-        resp = Ns(model="some-model", usage=usage_, choices=[Ns(
-            finish_reason=finish_reason, message=Ns(content=content or answer(), refusal=refusal))])
+        resp = Ns(
+            model="some-model",
+            usage=usage_,
+            choices=[Ns(finish_reason=finish_reason, message=Ns(content=content or answer(), refusal=refusal))],
+        )
 
         def create(**kw):
             self.calls.append(kw)
             return resp
+
         self.chat = Ns(completions=Ns(create=create))

@@ -12,7 +12,9 @@ class InboxTest(unittest.TestCase):
             self.assertEqual(inbox.add_photo(1, b"a").name, "photo_01.jpg")
             self.assertEqual(inbox.add_photo(1, b"b").name, "photo_02.jpg")
             self.assertEqual(inbox.add_links(1, ["https://a.example/1"]), ["https://a.example/1"])
-            self.assertEqual(inbox.add_links(1, ["https://a.example/1", "https://a.example/2"]), ["https://a.example/2"])
+            self.assertEqual(
+                inbox.add_links(1, ["https://a.example/1", "https://a.example/2"]), ["https://a.example/2"]
+            )
             self.assertEqual(inbox.summary(1), (2, ["https://a.example/1", "https://a.example/2"]))
 
     def test_replies_are_kept_apart_from_photos_notes_and_links(self):

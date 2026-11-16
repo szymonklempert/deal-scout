@@ -1,4 +1,5 @@
 """The API providers, with fake Anthropic / OpenAI clients: no network, no keys."""
+
 import dataclasses
 import json
 import sys
@@ -55,8 +56,9 @@ class ProviderTests(unittest.TestCase):
         self.assertNotIn("card_markdown", json.loads((self.root / "listings/001.json").read_text()))
         self.assertIn("Seller: Jan Kowalski", out[0].text)
         rec = usage.load(self.root / "logs/usage.jsonl")[-1]
-        self.assertEqual((rec["ok"], rec["provider"], rec["input_tokens"], rec["cached_tokens"]),
-                         (True, "anthropic", 9200, 8000))
+        self.assertEqual(
+            (rec["ok"], rec["provider"], rec["input_tokens"], rec["cached_tokens"]), (True, "anthropic", 9200, 8000)
+        )
 
     def test_anthropic_model_without_fallback_and_effort_off(self):
         client = FakeAnthropic()

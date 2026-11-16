@@ -5,6 +5,7 @@ fc:N the checks list, fk:N:j a check, fm:N:j:<m|x|u> its new result, fb:N back t
 fd:N done. fx:N may end in :<phone digits>, kept in memory for the summary shown after Done. corrections.fix()
 turns taps into FixReply values; the bot shows them.
 """
+
 from dataclasses import dataclass
 
 from deal_scout.feedback import check_marks, score_word, spec_marks
@@ -33,14 +34,16 @@ def _title(n: int, data: Listing) -> str:
 
 def _short(text: str) -> str:
     """Cut a criterion to fit a button."""
-    return text if len(text) <= LABEL_MAX else text[:LABEL_MAX - 1] + "…"
+    return text if len(text) <= LABEL_MAX else text[: LABEL_MAX - 1] + "…"
 
 
 def menu(n: int, data: Listing, specs: list[str]) -> Message:
     """Build the top screen: every spec with its score (✏️ when changed), the checks, and Done."""
     marks = spec_marks(data)
-    buttons: list[Button] = [(f"{'✏️ ' if name in marks else ''}{name} · {score_word(s)}", f"fs:{n}:{i}")
-                             for i, (name, _, s) in enumerate(ordered_specs(data, specs))]
+    buttons: list[Button] = [
+        (f"{'✏️ ' if name in marks else ''}{name} · {score_word(s)}", f"fs:{n}:{i}")
+        for i, (name, _, s) in enumerate(ordered_specs(data, specs))
+    ]
     if data.get("criteria_checks"):
         buttons.append(("Criteria checks ▸", f"fc:{n}"))
     buttons.append(("✅ Done", f"fd:{n}"))
@@ -64,7 +67,8 @@ def checks_screen(n: int, data: Listing) -> Message:
     """List every criteria check with its current result; tap one to change it."""
     buttons: list[Button] = [
         (f"{RESULT_ICON.get(c['result'], '❔')} {_short(c['criterion'])}", f"fk:{n}:{j}")
-        for j, c in enumerate(data.get("criteria_checks") or [])]
+        for j, c in enumerate(data.get("criteria_checks") or [])
+    ]
     buttons.append(("◀ Back", f"fb:{n}"))
     return Message(f"📝 Feedback on {_title(n, data)}: which check is wrong?", html=True, buttons=tuple(buttons))
 
@@ -76,15 +80,29 @@ def check_screen(n: int, data: Listing, j: int) -> Message:
     text = f"{esc(check['criterion'])}\nModel: {mark['was'] if mark else check['result']}"
     if mark:
         text += f"; now {check['result']}"
-    buttons: tuple[Button, ...] = (("✅ Met", f"fm:{n}:{j}:m"), ("❌ Missed", f"fm:{n}:{j}:x"),
-                                   ("❔ Unknown", f"fm:{n}:{j}:u"), ("◀ Back", f"fc:{n}"))
+    buttons: tuple[Button, ...] = (
+        ("✅ Met", f"fm:{n}:{j}:m"),
+        ("❌ Missed", f"fm:{n}:{j}:x"),
+        ("❔ Unknown", f"fm:{n}:{j}:u"),
+        ("◀ Back", f"fc:{n}"),
+    )
     return Message(text + ". Set:", html=True, buttons=buttons, columns=3)
 
 
-def confirm(n: int, name: str, old: object, new: object, score_before: object, score_after: object,
-            note: str = "", metric: str = "score") -> Message:
+def confirm(
+    n: int,
+    name: str,
+    old: object,
+    new: object,
+    score_before: object,
+    score_after: object,
+    note: str = "",
+    metric: str = "score",
+) -> Message:
     """After a correction: what changed, the score (or the specs average) before and after, and the ask for a reason."""
-    text = (f"✏️ #{n} {esc(name)}: {esc(old)} → {esc(new)} · {metric} {esc(score_before)} → {esc(score_after)}\n"
-            "Why? Reply with a short reason, or tap Skip.")
+    text = (
+        f"✏️ #{n} {esc(name)}: {esc(old)} → {esc(new)} · {metric} {esc(score_before)} → {esc(score_after)}\n"
+        "Why? Reply with a short reason, or tap Skip."
+    )
     buttons = (("Skip", f"fr:{n}"), ("◀ Back", f"fb:{n}"), ("✅ Done", f"fd:{n}"))
     return Message(text + note, html=True, buttons=buttons, columns=3)

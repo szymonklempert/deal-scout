@@ -4,6 +4,7 @@ Also the analysis queue and the poll loop. Messages from the private Telegram us
 saved into inbox/<NNN>/ and answered with a short confirmation; everyone else is ignored. The Telegram transport is
 injected (see telegram.py) and python3 -m deal_scout wires it up (see __main__.py).
 """
+
 import hashlib
 import json
 import logging
@@ -32,6 +33,8 @@ def code_version() -> str:
     for path in sorted(Path(__file__).resolve().parent.glob("*.py")):
         h.update(path.read_bytes())
     return h.hexdigest()[:8]
+
+
 URL_RE = re.compile(r"https?://[^\s<>\"']+")
 REPLY_ENDED = "reply mode ended; what you sent is kept. Tap 📨 again to add more."
 ANALYSIS_OFF = "Analysis is off. Set ANALYSIS=manual or ANALYSIS=auto in .env and restart."
@@ -66,12 +69,25 @@ class TelegramClient(Protocol):
     def get_updates(self, offset: int, wait: int = 30) -> list[dict[str, Any]]:
         """Long-poll for new messages and button taps, starting at offset."""
 
-    def send_message(self, chat_id: int | None, text: str, buttons: list[tuple[str, str]] | None = None,
-                     html: bool = False, columns: int = 1) -> None:
+    def send_message(
+        self,
+        chat_id: int | None,
+        text: str,
+        buttons: list[tuple[str, str]] | None = None,
+        html: bool = False,
+        columns: int = 1,
+    ) -> None:
         """Send one message, optionally HTML-formatted and with buttons, `columns` to a row."""
 
-    def edit_message(self, chat_id: int | None, message_id: int, text: str,
-                     buttons: list[tuple[str, str]] | None = None, html: bool = False, columns: int = 1) -> None:
+    def edit_message(
+        self,
+        chat_id: int | None,
+        message_id: int,
+        text: str,
+        buttons: list[tuple[str, str]] | None = None,
+        html: bool = False,
+        columns: int = 1,
+    ) -> None:
         """Replace the text and buttons of a message sent earlier."""
 
     def answer_callback(self, callback_id: str) -> None:
@@ -96,8 +112,17 @@ class BotState(TypedDict):
     current: CurrentListing | None
 
 
-FIX_PREFIXES = {"fx": "open", "fb": "back", "fs": "spec", "fv": "value", "fc": "checks", "fk": "check",
-                "fm": "mark", "fr": "skip", "fd": "done"}  # callback prefix -> corrections.fix action
+FIX_PREFIXES = {
+    "fx": "open",
+    "fb": "back",
+    "fs": "spec",
+    "fv": "value",
+    "fc": "checks",
+    "fk": "check",
+    "fm": "mark",
+    "fr": "skip",
+    "fd": "done",
+}  # callback prefix -> corrections.fix action
 REASON_SECONDS = 600  # how long the next plain text message counts as the reason for a correction
 ATTACH_SECONDS = 900  # how long reply mode lasts after the last message
 REPLY_TAPS = ("sr", "sa", "sc")  # seller replied, re-analyse, cancel
@@ -138,12 +163,20 @@ def reanalyse_button(n: int) -> tuple[str, str]:
 class Bot:
     """The bot's brain: saves what the owner sends, answers commands and runs the analysis jobs."""
 
-    def __init__(self, api: TelegramClient, root: Path, allowed_user_id: int | None, window_seconds: float = 180,
-                 clock: Callable[[], float] = time.time,
-                 processor: Callable[[int], list[Message]] | None = None, auto_analyse: bool = False,
-                 contact: Callable[[int, str], list[Message]] | None = None, sheet_link: str | None = None,
-                 seller_text: Callable[[int, str, str | None], list[Message]] | None = None,
-                 fixer: Callable[[int, str, list[str]], FixReply] | None = None) -> None:
+    def __init__(
+        self,
+        api: TelegramClient,
+        root: Path,
+        allowed_user_id: int | None,
+        window_seconds: float = 180,
+        clock: Callable[[], float] = time.time,
+        processor: Callable[[int], list[Message]] | None = None,
+        auto_analyse: bool = False,
+        contact: Callable[[int, str], list[Message]] | None = None,
+        sheet_link: str | None = None,
+        seller_text: Callable[[int, str, str | None], list[Message]] | None = None,
+        fixer: Callable[[int, str, list[str]], FixReply] | None = None,
+    ) -> None:
         """Wire the bot to its Telegram API, data folder, allowed user and the optional analysis callbacks."""
         self.api = api
         self.root = root
@@ -205,8 +238,11 @@ class Bot:
         chat = msg["chat"]["id"]
         if self.allowed is None:
             # Setup mode: tell the person their id, save nothing.
-            self.reply(chat, f"Setup: your Telegram user ID is {user}. Put TELEGRAM_ALLOWED_USER_ID={user} in the .env "
-                             "file and restart the bot. Nothing was saved.")
+            self.reply(
+                chat,
+                f"Setup: your Telegram user ID is {user}. Put TELEGRAM_ALLOWED_USER_ID={user} in the .env "
+                "file and restart the bot. Nothing was saved.",
+            )
             return
         if user != self.allowed:
             return  # strangers get no answer at all
@@ -234,8 +270,14 @@ class Bot:
         """
         pending, self.pending_reason = self.pending_reason, None
         plain = bool(msg.get("text")) and not (msg.get("photo") or msg.get("document"))
-        if (pending is None or self.fixer is None or self.clock() > pending.until or not plain
-                or text.startswith("/") or URL_RE.search(text)):
+        if (
+            pending is None
+            or self.fixer is None
+            or self.clock() > pending.until
+            or not plain
+            or text.startswith("/")
+            or URL_RE.search(text)
+        ):
             return False
         try:
             reply = self.fixer(pending.n, "reason", [pending.name, text])
@@ -285,8 +327,11 @@ class Bot:
                 log.warning("#%d: a photo could not be downloaded (%s)", n, type(exc).__name__)
         if failed:
             again = "it" if failed == 1 else "them"
-            self.reply(self.allowed, f"#{n}: {failed} photo(s) couldn't be downloaded (Telegram didn't answer in "
-                                     f"time). Please send {again} again.")
+            self.reply(
+                self.allowed,
+                f"#{n}: {failed} photo(s) couldn't be downloaded (Telegram didn't answer in "
+                f"time). Please send {again} again.",
+            )
         return failed
 
     ACK_DELAY = 2  # seconds of quiet before confirming what was saved
@@ -309,9 +354,17 @@ class Bot:
         if self.leave_reply_mode(cmd, args):
             return
         handlers: dict[str, Callable[[int | None, Sequence[str]], None]] = {
-            "/start": self.cmd_help, "/help": self.cmd_help, "/new": self.cmd_new, "/done": self.done,
-            "/phone": self.phone, "/status": self.cmd_status, "/usage": self.cmd_usage, "/sheet": self.cmd_sheet,
-            "/market": self.cmd_market, "/list": self.cmd_list}
+            "/start": self.cmd_help,
+            "/help": self.cmd_help,
+            "/new": self.cmd_new,
+            "/done": self.done,
+            "/phone": self.phone,
+            "/status": self.cmd_status,
+            "/usage": self.cmd_usage,
+            "/sheet": self.cmd_sheet,
+            "/market": self.cmd_market,
+            "/list": self.cmd_list,
+        }
         handler = handlers.get(cmd)
         if handler is None:
             self.reply(chat, "Unknown command. /help")
@@ -340,14 +393,20 @@ class Bot:
         if self.sheet_link:
             self.send(Message("Your listings sheet:", buttons=(("📊 Open sheet", self.sheet_link),)))
         else:
-            self.reply(chat, "No sheet link yet: put the spreadsheet's address in .env as GOOGLE_SHEET_LINK "
-                             "and restart the bot.")
+            self.reply(
+                chat,
+                "No sheet link yet: put the spreadsheet's address in .env as GOOGLE_SHEET_LINK and restart the bot.",
+            )
 
     def cmd_market(self, chat: int | None, args: Sequence[str]) -> None:
         """Send market.md, cut to Telegram's size limit."""
         path = self.root / "listings" / "market.md"
-        self.reply(chat, path.read_text(encoding="utf-8")[:4000] if path.exists()
-                   else "No market data yet: it is built after the first analysis.")
+        self.reply(
+            chat,
+            path.read_text(encoding="utf-8")[:4000]
+            if path.exists()
+            else "No market data yet: it is built after the first analysis.",
+        )
 
     def cmd_list(self, chat: int | None, args: Sequence[str]) -> None:
         """List the latest inbox folders with their photo and link counts."""
@@ -443,8 +502,13 @@ class Bot:
         """Make the owner's next messages the seller's reply to listing n."""
         self.pending_reason = None
         self.attach = PendingAttach(n, until=self.clock() + ATTACH_SECONDS)
-        self.send(Message(f"📨 #{n}: send the seller's reply: paste the text or send screenshots. "
-                          "Tap Re-analyse when done.", buttons=(reanalyse_button(n), ("Cancel", f"sc:{n}")), columns=2))
+        self.send(
+            Message(
+                f"📨 #{n}: send the seller's reply: paste the text or send screenshots. Tap Re-analyse when done.",
+                buttons=(reanalyse_button(n), ("Cancel", f"sc:{n}")),
+                columns=2,
+            )
+        )
 
     def leave_reply_mode(self, cmd: str, args: Sequence[str]) -> bool:
         """End reply mode before a command; True when the command was /done and became the re-analysis."""
@@ -467,8 +531,12 @@ class Bot:
         if attach.saved and self.auto_analyse:
             self.queue_analysis(attach.n)
             return
-        self.send(Message(f"📨 #{attach.n}: reply mode ended after 15 minutes of quiet. Re-analyse when you're ready:",
-                          buttons=(reanalyse_button(attach.n),)))
+        self.send(
+            Message(
+                f"📨 #{attach.n}: reply mode ended after 15 minutes of quiet. Re-analyse when you're ready:",
+                buttons=(reanalyse_button(attach.n),),
+            )
+        )
 
     def request_analysis(self, n: int) -> None:
         """Queue listing n for analysis, or say that analysis is off."""
@@ -491,8 +559,9 @@ class Bot:
             self.pending_reason = None
             self.reply(self.allowed, f"#{n}: {exc}")
             return
-        self.pending_reason = (PendingReason(n, reply.ask_reason, self.clock() + REASON_SECONDS)
-                               if reply.ask_reason else None)
+        self.pending_reason = (
+            PendingReason(n, reply.ask_reason, self.clock() + REASON_SECONDS) if reply.ask_reason else None
+        )
         self.show(reply, cb.get("message"))
 
     def show(self, reply: FixReply, tapped: dict[str, Any] | None) -> None:
@@ -526,16 +595,18 @@ class Bot:
             self.api.send_message(self.allowed, item)
             return
         try:
-            self.api.send_message(self.allowed, item.text, list(item.buttons) or None, html=item.html,
-                                  columns=item.columns)
+            self.api.send_message(
+                self.allowed, item.text, list(item.buttons) or None, html=item.html, columns=item.columns
+            )
         except RuntimeError as exc:
             self.send_plain_fallback(item, exc)
 
     def edit(self, chat_id: int | None, message_id: int, item: Message) -> None:
         """Edit a sent message in place; if Telegram refuses (message too old, same text), send it as a new one."""
         try:
-            self.api.edit_message(chat_id, message_id, item.text, list(item.buttons) or None, html=item.html,
-                                  columns=item.columns)
+            self.api.edit_message(
+                chat_id, message_id, item.text, list(item.buttons) or None, html=item.html, columns=item.columns
+            )
         except RuntimeError as exc:
             log.warning("Telegram refused a message edit (%s); sending a new message", exc)
             self.send(item)
@@ -553,8 +624,9 @@ class Bot:
         if item.fallback_url:
             self.api.send_message(self.allowed, f"Open {item.fallback_url} and paste the message above.")
         elif any(v.startswith("https://") for _, v in item.buttons):
-            self.api.send_message(self.allowed, "\n".join(f"{b[0]}: {b[1]}" for b in item.buttons
-                                                           if b[1].startswith("https://")))
+            self.api.send_message(
+                self.allowed, "\n".join(f"{b[0]}: {b[1]}" for b in item.buttons if b[1].startswith("https://"))
+            )
 
     def queue_analysis(self, n: int) -> None:
         """Put listing n in the analysis queue and tell the owner."""

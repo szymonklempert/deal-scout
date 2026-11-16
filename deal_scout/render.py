@@ -1,4 +1,5 @@
 """Format a listing's summary as Telegram HTML."""
+
 import html
 import re
 from collections.abc import Sequence
@@ -75,8 +76,15 @@ def summary_buttons(n: int, data: Listing, phone: str | None, sheet_link: str | 
     return buttons
 
 
-def summary_text(n: int, data: Listing, row: Row, specs: list[str], others: Sequence[int] = (),
-                 phone: str | None = None, reply_note: str = "") -> str:
+def summary_text(
+    n: int,
+    data: Listing,
+    row: Row,
+    specs: list[str],
+    others: Sequence[int] = (),
+    phone: str | None = None,
+    reply_note: str = "",
+) -> str:
     """Telegram HTML: header, the fixed spec list (one line each, with a score), then flags and contact.
 
     reply_note, when given, is a line about what the seller's reply changed; it follows the summary sentence.

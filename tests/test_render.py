@@ -1,4 +1,5 @@
 """The Telegram HTML helpers."""
+
 import unittest
 
 from deal_scout import render

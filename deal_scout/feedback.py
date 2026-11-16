@@ -6,6 +6,7 @@ apply_overrides() returns a copy of the listing with them applied, and records w
 MARK, so the summary and the CSV can show "5→3" without the model's values being touched. The key is only ever set
 on that copy, never on the data that is saved.
 """
+
 import copy
 import json
 import re
@@ -46,8 +47,9 @@ def apply_overrides(data: Listing, overrides: Overrides) -> Listing:
     return out
 
 
-def _override_specs(specs: list[dict[str, Any]], spec_over: dict[str, Any], was: dict[str, int | None],
-                    marks: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+def _override_specs(
+    specs: list[dict[str, Any]], spec_over: dict[str, Any], was: dict[str, int | None], marks: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Copy the model's specs with the owner's scores applied, noting each real change in marks."""
     out = copy.deepcopy(specs)
     by_name = {s.get("name"): s for s in out}
@@ -66,8 +68,9 @@ def _override_specs(specs: list[dict[str, Any]], spec_over: dict[str, Any], was:
     return out
 
 
-def _override_checks(checks: list[dict[str, Any]], check_over: dict[str, Any],
-                     marks: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+def _override_checks(
+    checks: list[dict[str, Any]], check_over: dict[str, Any], marks: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Copy the model's criteria checks with the owner's results applied, noting each real change in marks."""
     out = copy.deepcopy(checks)
     for check in out:
@@ -125,6 +128,7 @@ def carry_overrides(old: Overrides, new_data: Listing) -> tuple[Overrides, int]:
 
 def scrub_numbers(text: str) -> str:
     """Replace anything that looks like a phone number (7 or more digits) in the owner's free text."""
+
     def repl(m: re.Match[str]) -> str:
         return "[number removed]" if sum(c.isdigit() for c in m.group()) >= 7 else m.group()
 

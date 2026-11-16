@@ -1,4 +1,5 @@
 """Phone numbers and the drafts of the first message to a seller."""
+
 import json
 import re
 import urllib.parse
@@ -54,16 +55,24 @@ def contact_messages(data: Listing, phone: str | None) -> list[Message]:
     full = (data.get("seller_message") or "").strip()
     if full:
         if phone:
-            out.append(Message(text=full[:3900], buttons=(("Send on WhatsApp", whatsapp_url(phone, full)),),
-                               fallback_url=f"https://wa.me/{phone}"))
+            out.append(
+                Message(
+                    text=full[:3900],
+                    buttons=(("Send on WhatsApp", whatsapp_url(phone, full)),),
+                    fallback_url=f"https://wa.me/{phone}",
+                )
+            )
         else:
             out.append(Message(text=full[:3900]))
     sms = (data.get("seller_sms") or "").strip()
     if sms:
         # Telegram buttons can't open sms: links, so: the text in monospace (one tap copies it) and the number
         # written out (Telegram makes it tappable: call / SMS).
-        how = ("Tap the text to copy it, then tap the number and choose SMS." if phone
-               else "Tap the text to copy it. No phone number on the screenshots.")
+        how = (
+            "Tap the text to copy it, then tap the number and choose SMS."
+            if phone
+            else "Tap the text to copy it. No phone number on the screenshots."
+        )
         shown = f"📱 {pretty_phone(phone)}\n" if phone else ""
         text = f"<code>{esc(sms[:3500])}</code>\n\n{shown}{how}"
         out.append(Message(text=text, html=True))

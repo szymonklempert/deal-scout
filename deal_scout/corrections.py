@@ -4,6 +4,7 @@ corrections.fix() is the one entry point: it turns a tap (see feedback_menu.py f
 A correction is stored in listings/NNN.json under "overrides", and the CSV row, index, market page and sheet are
 recomputed from it. Standard library only.
 """
+
 import json
 import logging
 import time
@@ -40,8 +41,16 @@ def pick(args: Sequence[str], k: int, limit: int) -> int:
     return value
 
 
-def fix(root: Path | str, n: int, action: str, args: Sequence[str], *, settings: Settings, domain: Domain,
-        pusher: Callable[..., None] | None = None) -> FixReply:
+def fix(
+    root: Path | str,
+    n: int,
+    action: str,
+    args: Sequence[str],
+    *,
+    settings: Settings,
+    domain: Domain,
+    pusher: Callable[..., None] | None = None,
+) -> FixReply:
     """Handle one tap in the 📝 Feedback menu of listing n and say what to show next."""
     root = Path(root)
     data = load_listing(root, n)
@@ -65,8 +74,9 @@ def fix(root: Path | str, n: int, action: str, args: Sequence[str], *, settings:
         result = MARKS.get(args[1]) if len(args) > 1 else None
         if result is None:
             pick([], 0, 0)  # an unknown result letter is an out-of-date button too
-        return correct(root, n, "check", checks[j]["criterion"], result, settings=settings, domain=domain,
-                       pusher=pusher)
+        return correct(
+            root, n, "check", checks[j]["criterion"], result, settings=settings, domain=domain, pusher=pusher
+        )
     if action == "done":
         count = override_count(overrides)
         done = Message(f"📝 #{n}: {count} correction(s) saved.", html=True)
@@ -74,8 +84,7 @@ def fix(root: Path | str, n: int, action: str, args: Sequence[str], *, settings:
         if n not in rows:
             raise ProcessError(f"#{n} is not in listings.csv; re-analyse it with /done {n}")
         phone = normalise_phone(args[0]) if args else None  # the Feedback button carried it; never stored
-        return FixReply(done, edit=True,
-                        extra=(summary_message(n, shown, rows, domain, phone, sheet.link(settings)),))
+        return FixReply(done, edit=True, extra=(summary_message(n, shown, rows, domain, phone, sheet.link(settings)),))
     if action == "reason":
         return log_reason(root, n, domain, args)
     raise ProcessError(f"unknown action {action}")
@@ -85,15 +94,29 @@ def log_reason(root: Path, n: int, domain: Domain, args: Sequence[str]) -> FixRe
     """Record the owner's reason for the last correction (numbers scrubbed) and acknowledge it."""
     if len(args) < 2:
         raise ProcessError("no reason given")
-    record = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "listing": n, "kind": "reason", "name": args[0],
-              "reason": scrub_numbers(args[1])}
+    record = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "listing": n,
+        "kind": "reason",
+        "name": args[0],
+        "reason": scrub_numbers(args[1]),
+    }
     with storage.ROWS_LOCK:
         log_feedback(root / "listings" / "feedback.jsonl", record)
     return FixReply(extra=(Message("Noted."),))
 
 
-def correct(root: Path, n: int, kind: str, name: str, new: Any, *, settings: Settings, domain: Domain,
-            pusher: Callable[..., None] | None) -> FixReply:
+def correct(
+    root: Path,
+    n: int,
+    kind: str,
+    name: str,
+    new: Any,
+    *,
+    settings: Settings,
+    domain: Domain,
+    pusher: Callable[..., None] | None,
+) -> FixReply:
     """Store one correction, recompute the CSV row, index, market page and sheet, and ask for a reason."""
     listings = root / "listings"
     with storage.ROWS_LOCK:
@@ -103,8 +126,11 @@ def correct(root: Path, n: int, kind: str, name: str, new: Any, *, settings: Set
             raise ProcessError(f"#{n} is not in listings.csv; re-analyse it with /done {n}")
         overrides: Overrides = data.get("overrides") or {}
         before = apply_overrides(data, overrides)
-        model = (ordered_specs(data, [name])[0][2] if kind == "spec"
-                 else next(c["result"] for c in data["criteria_checks"] if c["criterion"] == name))
+        model = (
+            ordered_specs(data, [name])[0][2]
+            if kind == "spec"
+            else next(c["result"] for c in data["criteria_checks"] if c["criterion"] == name)
+        )
         group = overrides.setdefault("specs" if kind == "spec" else "checks", {})
         if new == model:
             group.pop(name, None)  # back to what the model said: no correction left
@@ -121,17 +147,36 @@ def correct(root: Path, n: int, kind: str, name: str, new: Any, *, settings: Set
         write_rows(listings / "listings.csv", rows, csv_fields(domain))
         write_index(listings / "INDEX.md", rows)
         refresh_market(listings, domain)
-        log_feedback(listings / "feedback.jsonl", {
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "listing": n, "kind": kind, "name": name, "model": model,
-            "owner": new, "domain": domain.name})
+        log_feedback(
+            listings / "feedback.jsonl",
+            {
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "listing": n,
+                "kind": kind,
+                "name": name,
+                "model": model,
+                "owner": new,
+                "domain": domain.name,
+            },
+        )
     log.info("#%d: correction to a %s", n, kind)
     note = sheet_note(rows[n], domain, settings, pusher)
     old_value = before_value(before, kind, name)
     column = "specs_avg" if kind == "spec" else "score"  # a spec correction leaves the criteria score alone
-    return FixReply(confirm(n, name, score_word(old_value) if kind == "spec" else old_value,
-                            score_word(new) if kind == "spec" else new, score_text(old_row.get(column)),
-                            score_text(rows[n][column]), note, metric="specs" if kind == "spec" else "score"),
-                    edit=True, ask_reason=name)
+    return FixReply(
+        confirm(
+            n,
+            name,
+            score_word(old_value) if kind == "spec" else old_value,
+            score_word(new) if kind == "spec" else new,
+            score_text(old_row.get(column)),
+            score_text(rows[n][column]),
+            note,
+            metric="specs" if kind == "spec" else "score",
+        ),
+        edit=True,
+        ask_reason=name,
+    )
 
 
 def before_value(before: Listing, kind: str, name: str) -> Any:

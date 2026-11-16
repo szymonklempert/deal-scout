@@ -3,6 +3,7 @@
 Entry points call load_env() and then Settings.from_env(); everything else receives the Settings object. Nothing
 else in deal_scout/ reads or writes os.environ (the active domain's name is Settings.domain). Standard library only.
 """
+
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field

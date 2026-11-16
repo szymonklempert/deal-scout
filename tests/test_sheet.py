@@ -26,8 +26,12 @@ class FakeOpener:
 class SheetTests(unittest.TestCase):
     def test_sends_secret_fields_and_numbers(self):
         opener = FakeOpener('{"ok": true, "row": 2}')
-        sheet.push({"number": "7", "title": "Ducato", "price_pln": "118500", "score": "6.5", "year": ""},
-                   ["number", "title", "price_pln", "score", "year"], SETTINGS, opener=opener)
+        sheet.push(
+            {"number": "7", "title": "Ducato", "price_pln": "118500", "score": "6.5", "year": ""},
+            ["number", "title", "price_pln", "score", "year"],
+            SETTINGS,
+            opener=opener,
+        )
         req = opener.requests[0]
         self.assertEqual(req.full_url, "https://script.google.com/macros/s/x/exec")
         body = json.loads(req.data)
@@ -45,7 +49,9 @@ class SheetTests(unittest.TestCase):
     def test_link_only_accepts_a_spreadsheet_address(self):
         good = dataclasses.replace(SETTINGS, sheet_link="https://docs.google.com/spreadsheets/d/abc/edit")
         self.assertEqual(sheet.link(good), "https://docs.google.com/spreadsheets/d/abc/edit")
-        self.assertIsNone(sheet.link(dataclasses.replace(SETTINGS, sheet_link="https://script.google.com/macros/s/x/exec")))
+        self.assertIsNone(
+            sheet.link(dataclasses.replace(SETTINGS, sheet_link="https://script.google.com/macros/s/x/exec"))
+        )
         self.assertIsNone(sheet.link(SETTINGS))
 
     def test_push_all_copies_every_row_with_all_columns(self):

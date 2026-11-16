@@ -4,6 +4,7 @@ The bot calls push() after each analysis. To copy everything that is already in 
     python3 -m deal_scout.sheet
 Configuration: GOOGLE_SHEET_URL (the web app URL) and GOOGLE_SHEET_SECRET in .env. Standard library only.
 """
+
 import json
 import sys
 import urllib.request
@@ -40,30 +41,37 @@ def as_value(value: Any) -> int | float | str:
     return text
 
 
-def push(row: Row, fields: Iterable[str], settings: Settings, opener: Callable[..., Any] = urllib.request.urlopen,
-         ) -> None:
+def push(
+    row: Row,
+    fields: Iterable[str],
+    settings: Settings,
+    opener: Callable[..., Any] = urllib.request.urlopen,
+) -> None:
     """Add or update one listing (matched by number). The script keeps a status you changed in the sheet."""
     body = {
         "secret": settings.sheet_secret,
         "fields": list(fields),
         "row": {k: as_value(row.get(k, "")) for k in fields},
     }
-    req = urllib.request.Request(settings.sheet_url, data=json.dumps(body).encode("utf-8"),
-                                 headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(
+        settings.sheet_url, data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"}
+    )
     # Apps Script answers with a redirect to the result; urllib follows it as a GET, which is what Google expects.
     with opener(req, timeout=30) as resp:
         raw = resp.read().decode("utf-8", "replace")
     try:
         out = json.loads(raw)
     except ValueError as exc:
-        raise RuntimeError("the sheet script did not answer with JSON (check the web app URL and access "
-                           "setting)") from exc
+        raise RuntimeError(
+            "the sheet script did not answer with JSON (check the web app URL and access setting)"
+        ) from exc
     if not out.get("ok"):
         raise RuntimeError(out.get("error") or "the sheet script reported an error")
 
 
-def push_all(csv_path: Path, fields: list[str], settings: Settings,
-             opener: Callable[..., Any] = urllib.request.urlopen) -> int:
+def push_all(
+    csv_path: Path, fields: list[str], settings: Settings, opener: Callable[..., Any] = urllib.request.urlopen
+) -> int:
     """Copy every row of listings.csv to the sheet, in number order; returns how many were copied."""
     rows = read_rows(csv_path)
     for n in sorted(rows):

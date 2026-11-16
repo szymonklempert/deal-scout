@@ -10,13 +10,34 @@ CFG = CAMPERVAN.market
 FAM = "Sprinter W906 (2006-2018)"
 
 
-def row(n, price, year=2011, km=180000, seller="", build="DIY", reg="M1", family=FAM, net="", price_score=7,
-        fair=(65000, 80000)):
-    return {"number": str(n), "price_pln": str(price) if price is not None else "", "year": str(year),
-            "mileage_km": str(km), "seller": seller, "model_family": family, "build": build, "registration": reg,
-            "body": "van conversion", "price_net": net, "fair_price_low": str(fair[0]) if fair else "",
-            "fair_price_high": str(fair[1]) if fair else "",
-            "Price vs market": f"x ({price_score}/10)" if price_score is not None else "not shown"}
+def row(
+    n,
+    price,
+    year=2011,
+    km=180000,
+    seller="",
+    build="DIY",
+    reg="M1",
+    family=FAM,
+    net="",
+    price_score=7,
+    fair=(65000, 80000),
+):
+    return {
+        "number": str(n),
+        "price_pln": str(price) if price is not None else "",
+        "year": str(year),
+        "mileage_km": str(km),
+        "seller": seller,
+        "model_family": family,
+        "build": build,
+        "registration": reg,
+        "body": "van conversion",
+        "price_net": net,
+        "fair_price_low": str(fair[0]) if fair else "",
+        "fair_price_high": str(fair[1]) if fair else "",
+        "Price vs market": f"x ({price_score}/10)" if price_score is not None else "not shown",
+    }
 
 
 class BandTests(unittest.TestCase):
@@ -39,8 +60,13 @@ class BandTests(unittest.TestCase):
 
 class GroupTests(unittest.TestCase):
     def test_repost_counts_once_at_latest_price_and_drop_is_reported(self):
-        rows = [row(1, 90000, seller="Jan K", km=180000), row(2, 84000, seller="jan  k", km=181500),
-                row(3, 80000, km=150000), row(4, 82000, km=160000), row(5, 86000, km=170000)]
+        rows = [
+            row(1, 90000, seller="Jan K", km=180000),
+            row(2, 84000, seller="jan  k", km=181500),
+            row(3, 80000, km=150000),
+            row(4, 82000, km=160000),
+            row(5, 86000, km=170000),
+        ]
         self.assertEqual(len(market.items(rows)), 4)
         text = market.build(rows, CFG, today="2026-11-15")
         self.assertIn("4 item(s) from 5 listing(s)", text)
@@ -54,8 +80,12 @@ class GroupTests(unittest.TestCase):
         self.assertFalse(market.same_item(row(1, 1, family="unknown"), row(2, 1, family="unknown")))
 
     def test_small_groups_hidden_and_exclusions_counted(self):
-        rows = [row(1, 80000), row(2, 82000, km=100000), row(3, None, km=120000), row(4, 30000, km=90000,
-                                                                                         price_score=0)]
+        rows = [
+            row(1, 80000),
+            row(2, 82000, km=100000),
+            row(3, None, km=120000),
+            row(4, 30000, km=90000, price_score=0),
+        ]
         text = market.build(rows, CFG, today="2026-11-15")
         self.assertIn("left out: 1 without a price, 1 suspiciously low", text)
         self.assertIn("Not enough data yet", text)

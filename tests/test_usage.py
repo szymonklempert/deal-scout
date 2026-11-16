@@ -5,10 +5,21 @@ from pathlib import Path
 
 from deal_scout import usage
 
-OUT = {"num_turns": 6, "duration_ms": 52000, "total_cost_usd": 0.3,
-       "modelUsage": {"claude-opus-5-5": {"inputTokens": 1000, "cacheCreationInputTokens": 20000,
-                                           "cacheReadInputTokens": 60000, "outputTokens": 4000, "costUSD": 0.25},
-                      "claude-haiku-5-5": {"inputTokens": 500, "outputTokens": 100, "costUSD": 0.01}}}
+OUT = {
+    "num_turns": 6,
+    "duration_ms": 52000,
+    "total_cost_usd": 0.3,
+    "modelUsage": {
+        "claude-opus-5-5": {
+            "inputTokens": 1000,
+            "cacheCreationInputTokens": 20000,
+            "cacheReadInputTokens": 60000,
+            "outputTokens": 4000,
+            "costUSD": 0.25,
+        },
+        "claude-haiku-5-5": {"inputTokens": 500, "outputTokens": 100, "costUSD": 0.01},
+    },
+}
 
 
 class UsageTests(unittest.TestCase):

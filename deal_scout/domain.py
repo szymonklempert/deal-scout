@@ -11,6 +11,7 @@ Everything specific to it lives in domains/<name>/ and the code only reads it:
 
 The active domain is DOMAIN in .env (default: campervan). Standard library only.
 """
+
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass

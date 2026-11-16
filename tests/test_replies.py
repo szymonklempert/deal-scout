@@ -1,4 +1,5 @@
 """The line that says what the seller's reply changed."""
+
 import unittest
 
 from deal_scout import replies
@@ -6,8 +7,9 @@ from deal_scout import replies
 
 class AnsweredTests(unittest.TestCase):
     def test_answered_are_the_old_items_no_longer_missing(self):
-        self.assertEqual(replies.answered_items(["VIN", "DMC", "Toilet type"], ["toilet  TYPE", "Rust"]),
-                         ["VIN", "DMC"])
+        self.assertEqual(
+            replies.answered_items(["VIN", "DMC", "Toilet type"], ["toilet  TYPE", "Rust"]), ["VIN", "DMC"]
+        )
         self.assertEqual(replies.answered_items([], ["VIN"]), [])
 
 
@@ -20,8 +22,10 @@ class ReplyNoteTests(unittest.TestCase):
         self.assertEqual(self.note(), "📨 After the seller's reply: score 6.2 → 7.4 · answered: VIN")
 
     def test_unchanged_without_answers(self):
-        self.assertEqual(self.note(old="6.2", new="6.2", new_missing=("VIN", "DMC")),
-                         "📨 After the seller's reply: score 6.2 (unchanged)")
+        self.assertEqual(
+            self.note(old="6.2", new="6.2", new_missing=("VIN", "DMC")),
+            "📨 After the seller's reply: score 6.2 (unchanged)",
+        )
 
     def test_no_score(self):
         self.assertEqual(self.note(old="", new="", new_missing=("VIN", "DMC")), "📨 After the seller's reply: score –")

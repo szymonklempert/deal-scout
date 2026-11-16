@@ -1,4 +1,5 @@
 """Applying the owner's Feedback taps."""
+
 import dataclasses
 import json
 import tempfile
@@ -21,8 +22,9 @@ class FixTests(unittest.TestCase):
         self.solar = CAMPERVAN.specs.index("Solar & batteries")
 
     def analyse(self, data=RESULT):
-        process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus",
-                                runner=FakeRunner(data))
+        process.process_listing(
+            self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus", runner=FakeRunner(data)
+        )
 
     def fix(self, action, *args, **kw):
         return corrections.fix(self.root, 1, action, list(args), settings=SETTINGS, domain=CAMPERVAN, **kw)
@@ -46,8 +48,10 @@ class FixTests(unittest.TestCase):
         self.assertEqual(saved["overrides"], {"specs": {"Solar & batteries": 3}})
         self.assertEqual(saved["specs"][1]["score"], 8)  # the model's value is untouched
         line = self.feedback()[0]
-        self.assertEqual((line["kind"], line["name"], line["model"], line["owner"], line["domain"]),
-                         ("spec", "Solar & batteries", 8, 3, "campervan"))
+        self.assertEqual(
+            (line["kind"], line["name"], line["model"], line["owner"], line["domain"]),
+            ("spec", "Solar & batteries", 8, 3, "campervan"),
+        )
         self.assertNotIn("Kowalski", json.dumps(line))
         self.fix("reason", "Solar & batteries", "panel is 100 W, call 600 123 456")
         text = (self.root / "listings/feedback.jsonl").read_text(encoding="utf-8")
@@ -105,8 +109,10 @@ class FixTests(unittest.TestCase):
 
         def broken(row, fields):
             raise RuntimeError("wrong secret")
-        reply = corrections.fix(self.root, 1, "value", [str(self.solar), "3"], settings=settings, domain=CAMPERVAN,
-                            pusher=broken)
+
+        reply = corrections.fix(
+            self.root, 1, "value", [str(self.solar), "3"], settings=settings, domain=CAMPERVAN, pusher=broken
+        )
         self.assertIn("Google Sheet not updated (wrong secret)", reply.message.text)
 
     def test_screens(self):
@@ -117,8 +123,13 @@ class FixTests(unittest.TestCase):
     def test_errors(self):
         with self.assertRaisesRegex(errors.ProcessError, "not been analysed"):
             corrections.fix(self.root, 5, "open", [], settings=SETTINGS, domain=CAMPERVAN)
-        for action, args in (("spec", ["99"]), ("spec", ["x"]), ("value", ["0", "11"]), ("check", ["9"]),
-                             ("mark", ["0", "z"])):
+        for action, args in (
+            ("spec", ["99"]),
+            ("spec", ["x"]),
+            ("value", ["0", "11"]),
+            ("check", ["9"]),
+            ("mark", ["0", "z"]),
+        ):
             with self.assertRaisesRegex(errors.ProcessError, "out of date"):
                 self.fix(action, *args)
 

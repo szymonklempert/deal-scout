@@ -1,4 +1,5 @@
 """The analysis prompt and the JSON schema the model must answer with."""
+
 from pathlib import Path
 from typing import Any
 
@@ -152,14 +153,24 @@ Put the seller's name only in the card's seller line and in seller_name. Never w
 
 def prompt(nnn: str, d: Domain, api: bool = False) -> str:
     """Return the instructions; Claude Code reads the files itself, for API providers they are appended (api_files)."""
-    cats = "".join(f"- {key}: one of the allowed values{': ' + cat['help'] if cat.get('help') else ''}; "
-                   "\"unknown\" when the listing doesn't let you tell.\n" for key, cat in d.categories.items())
+    cats = "".join(
+        f"- {key}: one of the allowed values{': ' + cat['help'] if cat.get('help') else ''}; "
+        '"unknown" when the listing doesn\'t let you tell.\n'
+        for key, cat in d.categories.items()
+    )
     return ((INTRO_API if api else INTRO_CLAUDE_CODE) + RULES).format(
-        item=d.item, unit=d.unit, nnn=nnn, ddir=d.rel, language=d.seller_language,
+        item=d.item,
+        unit=d.unit,
+        nnn=nnn,
+        ddir=d.rel,
+        language=d.seller_language,
         criteria="criteria.md, " if d.has_criteria() else "",
         refs="".join(f", {f} ({what})" for f, what in d.reference_files.items()),
-        instructions=d.instructions or "(none)", specs=", ".join(d.specs), categories=cats,
-        title_example=f', e.g. "{d.title_example}"' if d.title_example else "")
+        instructions=d.instructions or "(none)",
+        specs=", ".join(d.specs),
+        categories=cats,
+        title_example=f', e.g. "{d.title_example}"' if d.title_example else "",
+    )
 
 
 def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[Path]]:
@@ -168,8 +179,9 @@ def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[P
     The system prompt holds the instructions and the domain's files (the same for every listing, so providers can
     cache them); the listing goes in the user turn. The images are the listing's photos, then the seller's replies.
     """
-    files = ((["criteria.md"] if d.has_criteria() else []) + ["checklist.md", "card-template.md"]
-             + list(d.reference_files))
+    files = (
+        (["criteria.md"] if d.has_criteria() else []) + ["checklist.md", "card-template.md"] + list(d.reference_files)
+    )
     parts = [prompt(nnn, d, api=True)]
     for name in files:
         path = d.dir / name
@@ -188,8 +200,10 @@ def api_request(root: Path | str, nnn: str, d: Domain) -> tuple[str, str, list[P
     photos = sorted(x for x in folder.glob("photo_*") if x.is_file())
     replies = sorted(x for x in folder.glob("reply_*") if x.is_file())
     if replies:
-        user.append(f"{len(photos)} photo(s) of the listing, then {len(replies)} of the seller's replies, "
-                    "are attached, in order.")
+        user.append(
+            f"{len(photos)} photo(s) of the listing, then {len(replies)} of the seller's replies, "
+            "are attached, in order."
+        )
     else:
         user.append(f"{len(photos)} photo(s) of the listing are attached, in order.")
     return "\n".join(parts), "\n\n".join(user), photos + replies

@@ -1,4 +1,5 @@
 """The score from criteria checks and the spec scores."""
+
 import unittest
 
 from fakes import CAMPERVAN, RESULT, check
@@ -20,8 +21,11 @@ class ScoreTests(unittest.TestCase):
         self.assertEqual(scoring.score([check("Rust", "unknown", True), check("Bed", "met")]), 7.5)
 
     def test_nice_to_haves_count_half(self):
-        checks = [check("Solar", "met"), dict(check("Indoor shower", "missed"), importance="nice to have"),
-                  dict(check("Swivel seats", "missed"), importance="big plus")]
+        checks = [
+            check("Solar", "met"),
+            dict(check("Indoor shower", "missed"), importance="nice to have"),
+            dict(check("Swivel seats", "missed"), importance="big plus"),
+        ]
         self.assertEqual(scoring.score(checks), 4.0)  # 1 of 2.5
 
     def test_deal_breaker_label_is_stripped(self):
@@ -31,8 +35,9 @@ class ScoreTests(unittest.TestCase):
 
 class OrderedSpecsTests(unittest.TestCase):
     def test_scores_are_clamped(self):
-        data = {"specs": [{"name": "Year", "value": "2014", "score": 14}, {"name": "Mileage", "value": "x",
-                                                                          "score": -2}]}
+        data = {
+            "specs": [{"name": "Year", "value": "2014", "score": 14}, {"name": "Mileage", "value": "x", "score": -2}]
+        }
         got = {n: s for n, _, s in scoring.ordered_specs(data, CAMPERVAN.specs)}
         self.assertEqual((got["Year"], got["Mileage"]), (10, 0))
 

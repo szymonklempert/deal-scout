@@ -5,6 +5,7 @@ one of these outputs is intended, regenerate them with
     GOLDEN_UPDATE=1 python3 -m unittest discover -s tests -p test_golden.py
 and review the diff of tests/golden/ before committing.
 """
+
 import dataclasses
 import functools
 import json
@@ -29,25 +30,44 @@ DATE = re.compile(r"\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?")
 
 def result(**over):
     data = {
-        "title": "Acme Widget 3 128 GB", "seller_name": "Alex Example", "source": "Gadgets for sale",
-        "location": "Kraków", "kind": "phone", "grade": "used", "price_net": False, "fair_price_low": 1000,
-        "fair_price_high": 1200, "price_pln": 1350, "model": "Acme Widget 3", "year": 2022, "mileage_km": None,
-        "specs": [{"name": "Price vs market", "value": "1 350 PLN · fair 1.0-1.2k", "score": 5},
-                  {"name": "Condition", "value": "light scratches <back>", "score": 7},
-                  {"name": "Battery", "value": "not shown", "score": 4}],
+        "title": "Acme Widget 3 128 GB",
+        "seller_name": "Alex Example",
+        "source": "Gadgets for sale",
+        "location": "Kraków",
+        "kind": "phone",
+        "grade": "used",
+        "price_net": False,
+        "fair_price_low": 1000,
+        "fair_price_high": 1200,
+        "price_pln": 1350,
+        "model": "Acme Widget 3",
+        "year": 2022,
+        "mileage_km": None,
+        "specs": [
+            {"name": "Price vs market", "value": "1 350 PLN · fair 1.0-1.2k", "score": 5},
+            {"name": "Condition", "value": "light scratches <back>", "score": 7},
+            {"name": "Battery", "value": "not shown", "score": 4},
+        ],
         "facts": [{"field": "Storage", "value": "128 GB", "certainty": "read"}],
         "criteria_checks": [
             {"criterion": "Budget: up to 1500 PLN", "result": "met", "deal_breaker": True, "importance": "required"},
-            {"criterion": "Battery health shown", "result": "unknown", "deal_breaker": False,
-             "importance": "required"},
+            {"criterion": "Battery health shown", "result": "unknown", "deal_breaker": False, "importance": "required"},
             {"criterion": "Original box", "result": "missed", "deal_breaker": False, "importance": "nice to have"},
-            {"criterion": "Deal breaker: iCloud lock", "result": "unknown", "deal_breaker": True,
-             "importance": "required"}],
-        "missing": ["battery health", "serial number"], "red_flags": ["price above fair range", "no receipt"],
-        "verdict": "ask first", "summary": "Decent phone & fair condition, but the battery is unknown.",
+            {
+                "criterion": "Deal breaker: iCloud lock",
+                "result": "unknown",
+                "deal_breaker": True,
+                "importance": "required",
+            },
+        ],
+        "missing": ["battery health", "serial number"],
+        "red_flags": ["price above fair range", "no receipt"],
+        "verdict": "ask first",
+        "summary": "Decent phone & fair condition, but the battery is unknown.",
         "seller_message": "Hello, I'm interested in the Acme Widget 3.\n1. What is the battery health?\nThanks.",
         "seller_sms": "Hello, is the Acme Widget 3 still for sale? Battery health?",
-        "seller_phone": "+48 600 111 222", "contact_preference": "whatsapp",
+        "seller_phone": "+48 600 111 222",
+        "contact_preference": "whatsapp",
     }
     data.update(over)
     return data
@@ -78,8 +98,9 @@ class Recorder:
 
 def user_text(content):
     """The user message of an API request as the model gets it, images as placeholders."""
-    return "\n".join(f"<image {b['source']['media_type']}>" if b["type"] == "image" else b["text"]
-                     for b in content) + "\n"
+    return (
+        "\n".join(f"<image {b['source']['media_type']}>" if b["type"] == "image" else b["text"] for b in content) + "\n"
+    )
 
 
 def mask(text):
@@ -143,8 +164,9 @@ class GoldenTests(unittest.TestCase):
         content = kw["messages"][0]["content"]
         self.check("api_system.txt", kw["system"][0]["text"] + "\n")
         self.check("api_user.txt", user_text(content))
-        self.check("schema_card.json", json.dumps(kw["output_config"]["format"]["schema"], indent=2,
-                                                  ensure_ascii=False) + "\n")
+        self.check(
+            "schema_card.json", json.dumps(kw["output_config"]["format"]["schema"], indent=2, ensure_ascii=False) + "\n"
+        )
         self.check("card_api.md", (self.root / "listings" / "001.md").read_text(encoding="utf-8"))
         self.check("summary_api.txt", message_text(out))
         settings = dataclasses.replace(self.settings, provider="openai")
@@ -170,8 +192,12 @@ class GoldenTests(unittest.TestCase):
         prices = [1450, 1100, 1350, 1500, 1800, 1300, 1400, 1250, 1600, 1380]
         for n, price in enumerate(prices, start=1):
             self.listing(n, links=f"https://example.com/item/{n}")
-            over = {"price_pln": price, "model": f"Acme Widget {n}", "year": 2020 + n % 4,
-                    "grade": "used" if n % 2 else "new"}
+            over = {
+                "price_pln": price,
+                "model": f"Acme Widget {n}",
+                "year": 2020 + n % 4,
+                "grade": "used" if n % 2 else "new",
+            }
             if n == 10:  # #1 reposted cheaper
                 over.update(model="Acme Widget 1", year=2021)
             if n == 2:
@@ -179,30 +205,50 @@ class GoldenTests(unittest.TestCase):
             if n == 3:
                 over["criteria_checks"] = [dict(result()["criteria_checks"][0], result="missed")]
             if n == 4:
-                over.update(criteria_checks=[], seller_message="", seller_sms="", seller_name=None,
-                            price_pln=None, specs=[])
-            out = process.process_listing(self.root, n, settings=self.settings, domain=self.domain, model="opus",
-                                          runner=FakeRunner(result(**over)))
+                over.update(
+                    criteria_checks=[], seller_message="", seller_sms="", seller_name=None, price_pln=None, specs=[]
+                )
+            out = process.process_listing(
+                self.root,
+                n,
+                settings=self.settings,
+                domain=self.domain,
+                model="opus",
+                runner=FakeRunner(result(**over)),
+            )
             self.check(f"summary_{n}.txt", message_text(out))
         listings = self.root / "listings"
         self.check("listings.csv", mask(listings.joinpath("listings.csv").read_text(encoding="utf-8-sig")))
         self.check("INDEX.md", listings.joinpath("INDEX.md").read_text(encoding="utf-8"))
         self.check("market.md", mask(listings.joinpath("market.md").read_text(encoding="utf-8")))
         self.check("001.json", listings.joinpath("001.json").read_text(encoding="utf-8"))
-        drafts = (contact.seller_text(self.root, 1, "msg", "48600111222")
-                  + contact.seller_text(self.root, 1, "sms", "48600111222")
-                  + contact.seller_text(self.root, 1, "sms", "")
-                  + contact.contact_for(self.root, 2, "+49 151 2345 6789"))
+        drafts = (
+            contact.seller_text(self.root, 1, "msg", "48600111222")
+            + contact.seller_text(self.root, 1, "sms", "48600111222")
+            + contact.seller_text(self.root, 1, "sms", "")
+            + contact.contact_for(self.root, 2, "+49 151 2345 6789")
+        )
         self.check("drafts.txt", message_text(drafts))
 
     def test_bot_transcript(self):
         api = Recorder()
+
         def processor(n):
-            return process.process_listing(self.root, n, settings=self.settings, domain=self.domain, model="opus",
-                                           runner=FakeRunner(result()))
-        bot = botmod.Bot(api, self.root, 1, window_seconds=180, clock=lambda: 1000.0, processor=processor,
-                         contact=lambda n, phone: contact.contact_for(self.root, n, phone), sheet_link=SHEET_LINK,
-                         seller_text=lambda n, kind, phone: contact.seller_text(self.root, n, kind, phone))
+            return process.process_listing(
+                self.root, n, settings=self.settings, domain=self.domain, model="opus", runner=FakeRunner(result())
+            )
+
+        bot = botmod.Bot(
+            api,
+            self.root,
+            1,
+            window_seconds=180,
+            clock=lambda: 1000.0,
+            processor=processor,
+            contact=lambda n, phone: contact.contact_for(self.root, n, phone),
+            sheet_link=SHEET_LINK,
+            seller_text=lambda n, kind, phone: contact.seller_text(self.root, n, kind, phone),
+        )
 
         def say(text=None, user=1, photo=None):
             m = {"from": {"id": user}, "chat": {"id": user}, "date": 1000}
@@ -244,20 +290,34 @@ class GoldenTests(unittest.TestCase):
     def test_feedback_transcript(self):
         api = Recorder()
         self.listing(1, links="https://example.com/item/1")
-        process.process_listing(self.root, 1, settings=self.settings, domain=self.domain, model="opus",
-                                runner=FakeRunner(result()))
+        process.process_listing(
+            self.root, 1, settings=self.settings, domain=self.domain, model="opus", runner=FakeRunner(result())
+        )
         fixer = functools.partial(corrections.fix, self.root, settings=self.settings, domain=self.domain)
         bot = botmod.Bot(api, self.root, 1, clock=lambda: 1000.0, fixer=fixer)
 
         def tap(data):
-            bot.handle_update({"update_id": 2, "callback_query": {
-                "id": "cb", "from": {"id": 1}, "data": data, "message": {"message_id": 9, "chat": {"id": 1}}}})
+            bot.handle_update(
+                {
+                    "update_id": 2,
+                    "callback_query": {
+                        "id": "cb",
+                        "from": {"id": 1},
+                        "data": data,
+                        "message": {"message_id": 9, "chat": {"id": 1}},
+                    },
+                }
+            )
 
         tap("fx:1:48600111222")
         tap("fs:1:0")
         tap("fv:1:0:3")
-        bot.handle_update({"update_id": 3, "message": {"from": {"id": 1}, "chat": {"id": 1}, "date": 1000,
-                                                       "text": "The fair price is higher"}})
+        bot.handle_update(
+            {
+                "update_id": 3,
+                "message": {"from": {"id": 1}, "chat": {"id": 1}, "date": 1000, "text": "The fair price is higher"},
+            }
+        )
         tap("fc:1")
         tap("fk:1:1")
         tap("fm:1:1:m")
@@ -267,18 +327,26 @@ class GoldenTests(unittest.TestCase):
     def test_reply_transcript(self):
         api = Recorder()
         self.listing(1, links="https://example.com/item/1")
-        process.process_listing(self.root, 1, settings=self.settings, domain=self.domain, model="opus",
-                                runner=FakeRunner(result()))
+        process.process_listing(
+            self.root, 1, settings=self.settings, domain=self.domain, model="opus", runner=FakeRunner(result())
+        )
         answered = result(
-            missing=[], summary="Battery checks out; worth a visit.", verdict="worth a visit",
+            missing=[],
+            summary="Battery checks out; worth a visit.",
+            verdict="worth a visit",
             seller_message="Thank you for the answers.\nCould I see the phone in person this week?",
             seller_sms="Thank you! Could I see the phone this week?",
-            criteria_checks=[dict(c, result="met") if c["criterion"] == "Battery health shown" else c
-                             for c in result()["criteria_checks"]])
+            criteria_checks=[
+                dict(c, result="met") if c["criterion"] == "Battery health shown" else c
+                for c in result()["criteria_checks"]
+            ],
+        )
 
         def processor(n):
-            return process.process_listing(self.root, n, settings=self.settings, domain=self.domain, model="opus",
-                                           runner=FakeRunner(answered))
+            return process.process_listing(
+                self.root, n, settings=self.settings, domain=self.domain, model="opus", runner=FakeRunner(answered)
+            )
+
         bot = botmod.Bot(api, self.root, 1, clock=lambda: 1000.0, processor=processor, sheet_link=SHEET_LINK)
 
         def say(text=None, photo=None):
@@ -302,8 +370,9 @@ class GoldenTests(unittest.TestCase):
 
     def test_corrections_are_logged_without_personal_data(self):
         self.listing(1)
-        process.process_listing(self.root, 1, settings=self.settings, domain=self.domain, model="opus",
-                                runner=FakeRunner(result()))
+        process.process_listing(
+            self.root, 1, settings=self.settings, domain=self.domain, model="opus", runner=FakeRunner(result())
+        )
         corrections.fix(self.root, 1, "value", ["0", "3"], settings=self.settings, domain=self.domain)
         text = (self.root / "listings" / "feedback.jsonl").read_text(encoding="utf-8")
         self.assertNotIn("Alex", text)

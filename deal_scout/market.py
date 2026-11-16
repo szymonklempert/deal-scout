@@ -10,6 +10,7 @@ MIN_N items are not shown. It never edits knowledge.md: it flags where the "fair
 the asking prices disagree, and you decide.
 Standard library only.
 """
+
 import re
 import statistics
 import sys
@@ -24,8 +25,14 @@ from deal_scout.storage import Row, read_rows
 MIN_N = 4
 VAT = 1.23
 # Grouping comes from the domain's domain.json ("market"); these are used when it says nothing.
-DEFAULTS = {"same_item_key": None, "group_by": ["years"], "detail_by": [], "finest_by": [],
-            "year_bands": [[0, "any year"]], "km_bands": [[None, "any km"]]}
+DEFAULTS = {
+    "same_item_key": None,
+    "group_by": ["years"],
+    "detail_by": [],
+    "finest_by": [],
+    "year_bands": [[0, "any year"]],
+    "km_bands": [[None, "any km"]],
+}
 
 
 def num(value: object) -> float | None:
@@ -154,8 +161,10 @@ def select_members(all_vans: Sequence[list[Row]]) -> tuple[Group, int, int]:
 def group_key(van: list[Row], fields: Sequence[str], cfg: Mapping[str, Any]) -> tuple[Any, ...]:
     """Return the group an item falls in for the given fields: band names for years and km, the raw value otherwise."""
     r = van[-1]
-    special = {"years": lambda: year_band(r.get("year"), cfg["year_bands"]),
-               "km": lambda: km_band(r.get("mileage_km"), cfg["km_bands"])}
+    special = {
+        "years": lambda: year_band(r.get("year"), cfg["year_bands"]),
+        "km": lambda: km_band(r.get("mileage_km"), cfg["km_bands"]),
+    }
     return tuple(special[f]() if f in special else (r.get(f) or "unknown") for f in fields)
 
 
@@ -169,20 +178,27 @@ def groups(members: Group, fields: Sequence[str], cfg: Mapping[str, Any]) -> dic
 
 def header_lines(today: str | None, n_items: int, n_rows: int, no_price: int, suspicious: int) -> list[str]:
     """Return the title, the caveats and the one-line summary of what was counted and left out."""
-    return ["# Market prices from your own listings",
-            "",
-            "Generated after every analysis (python3 -m deal_scout.market rebuilds it); don't edit (changes are "
-            "overwritten). Asking prices, "
-            f"not sale prices. Net prices +23%. Reposts count once, at the latest price. Groups with fewer than "
-            f"{MIN_N} items are not shown.",
-            "",
-            f"Updated {today or time.strftime('%Y-%m-%d')}: {n_items} item(s) from {n_rows} listing(s); "
-            f"left out: {no_price} without a price, {suspicious} suspiciously low.",
-            ""]
+    return [
+        "# Market prices from your own listings",
+        "",
+        "Generated after every analysis (python3 -m deal_scout.market rebuilds it); don't edit (changes are "
+        "overwritten). Asking prices, "
+        f"not sale prices. Net prices +23%. Reposts count once, at the latest price. Groups with fewer than "
+        f"{MIN_N} items are not shown.",
+        "",
+        f"Updated {today or time.strftime('%Y-%m-%d')}: {n_items} item(s) from {n_rows} listing(s); "
+        f"left out: {no_price} without a price, {suspicious} suspiciously low.",
+        "",
+    ]
 
 
-def section_lines(g: tuple[Any, ...], top: Mapping[tuple[Any, ...], Group], detail: Mapping[tuple[Any, ...], Group],
-                  finest: Mapping[tuple[Any, ...], Group], detail_by: Sequence[str]) -> list[str]:
+def section_lines(
+    g: tuple[Any, ...],
+    top: Mapping[tuple[Any, ...], Group],
+    detail: Mapping[tuple[Any, ...], Group],
+    finest: Mapping[tuple[Any, ...], Group],
+    detail_by: Sequence[str],
+) -> list[str]:
     """One top-level group's heading, its "all" line, and the detail and finest sub-group lines that differ."""
     width = len(g)
     lines = ["## " + " · ".join(g), group_line("all", top[g])]

@@ -1,4 +1,5 @@
 """Turn the model's criteria checks and spec scores into numbers; pure, no I/O."""
+
 from typing import Any
 
 from deal_scout.prompts import Listing
@@ -37,6 +38,7 @@ def score(checks: list[dict[str, Any]]) -> float | None:
         return None
     if any(c["deal_breaker"] and c["result"] == "missed" for c in checks):
         return 0.0
+
     def weight(c: dict[str, Any]) -> float:
         return WEIGHT.get(c.get("importance"), 1.0)
 

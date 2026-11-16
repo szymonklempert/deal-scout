@@ -36,9 +36,10 @@ class SendMessageTest(unittest.TestCase):
         method, params = calls[0]
         self.assertEqual(method, "editMessageText")
         self.assertEqual((params["chat_id"], params["message_id"], params["parse_mode"]), (7, 42, "HTML"))
-        self.assertEqual(params["reply_markup"]["inline_keyboard"],
-                         [[{"text": "A", "callback_data": "fb:1"}, {"text": "B", "callback_data": "fd:1"}]])
-
+        self.assertEqual(
+            params["reply_markup"]["inline_keyboard"],
+            [[{"text": "A", "callback_data": "fb:1"}, {"text": "B", "callback_data": "fd:1"}]],
+        )
 
 
 class DownloadTest(unittest.TestCase):
@@ -52,6 +53,7 @@ class DownloadTest(unittest.TestCase):
             if isinstance(outcome, Exception):
                 raise outcome
             return outcome
+
         api.download = download  # type: ignore[method-assign]
         return api
 

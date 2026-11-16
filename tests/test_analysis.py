@@ -1,4 +1,5 @@
 """The Claude Code command line."""
+
 import unittest
 
 from fakes import CAMPERVAN
@@ -14,9 +15,10 @@ class CommandTests(unittest.TestCase):
         self.assertNotIn("Web", tools)
         self.assertIn("--restricted", cmd)
         self.assertEqual(cmd[cmd.index("--permission-mode") + 1], "dontAsk")
-        allowed = cmd[cmd.index("--allowedTools") + 1:cmd.index("--permission-mode")]
-        self.assertEqual([a for a in allowed if a.startswith(("Write", "Edit"))],
-                         ["Write(./listings/**)", "Edit(./listings/**)"])
+        allowed = cmd[cmd.index("--allowedTools") + 1 : cmd.index("--permission-mode")]
+        self.assertEqual(
+            [a for a in allowed if a.startswith(("Write", "Edit"))], ["Write(./listings/**)", "Edit(./listings/**)"]
+        )
         self.assertIn("inbox/007/", cmd[2])
         self.assertIn("Never write phone numbers into any file", cmd[2])
         self.assertIn("seller_name", prompts.schema(CAMPERVAN)["required"])

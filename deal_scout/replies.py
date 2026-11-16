@@ -1,4 +1,5 @@
 """What the seller's reply changed: the answered questions and the score, as one line of the summary. Pure."""
+
 import re
 from collections.abc import Sequence
 

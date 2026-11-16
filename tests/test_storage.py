@@ -1,4 +1,5 @@
 """The listings CSV."""
+
 import tempfile
 import unittest
 from pathlib import Path

@@ -1,4 +1,5 @@
 """The inbox folder: one inbox/<NNN>/ per listing, with its photos, notes, links and the seller's replies."""
+
 import re
 import time
 from collections.abc import Sequence
