@@ -137,10 +137,27 @@ def summary_message(
     sheet_link: str | None,
     note: str = "",
     reply_note: str = "",
+    stored: bool = False,
 ) -> Message:
     """Build the summary Telegram message of listing n, from its (overridden) data and its CSV row."""
-    text = summary_text(n, shown, rows[n], domain.specs, same_seller(n, rows), phone, reply_note) + note
+    text = summary_text(n, shown, rows[n], domain.specs, same_seller(n, rows), phone, reply_note, stored) + note
     return Message(text=text[:4000], html=True, buttons=tuple(summary_buttons(n, shown, phone, sheet_link)))
+
+
+def stored_summary(
+    root: Path, n: int, domain: Domain, settings: Settings, phone: str | None = None, stored: bool = False
+) -> Message:
+    """Rebuild listing n's summary from listings/NNN.json (the owner's corrections applied) and its CSV row.
+
+    Used where nothing was just analysed: after Feedback "Done" (phone: the number carried by the button) and /show
+    (stored=True: the phone is unknown, and the contact line says how to add it).
+    """
+    data = load_listing(root, n)
+    rows = read_rows(root / "listings" / "listings.csv")
+    if n not in rows:
+        raise ProcessError(f"#{n} is not in listings.csv; re-analyse it with /done {n}")
+    shown = apply_overrides(data, data.get("overrides") or {})
+    return summary_message(n, shown, rows, domain, phone, sheet.link(settings), stored=stored)
 
 
 def load_listing(root: Path, n: int) -> Listing:

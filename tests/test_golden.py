@@ -17,7 +17,7 @@ from pathlib import Path
 
 from fakes import FakeAnthropic, FakeOpenAI, FakeRunner
 
-from deal_scout import analysis, config, contact, corrections, domain, process
+from deal_scout import analysis, config, contact, corrections, domain, library, process
 from deal_scout import bot as botmod
 from deal_scout.render import Message
 
@@ -188,7 +188,9 @@ class GoldenTests(unittest.TestCase):
     def read(self, name):
         return (GOLDEN / name).read_text(encoding="utf-8")
 
-    def test_full_run_files_and_messages(self):
+    def analyse_fixture_listings(self):
+        """Analyse ten listings (#10 is #1 reposted cheaper) and return each summary's messages."""
+        summaries = []
         prices = [1450, 1100, 1350, 1500, 1800, 1300, 1400, 1250, 1600, 1380]
         for n, price in enumerate(prices, start=1):
             self.listing(n, links=f"https://example.com/item/{n}")
@@ -216,6 +218,11 @@ class GoldenTests(unittest.TestCase):
                 model="opus",
                 runner=FakeRunner(result(**over)),
             )
+            summaries.append(out)
+        return summaries
+
+    def test_full_run_files_and_messages(self):
+        for n, out in enumerate(self.analyse_fixture_listings(), start=1):
             self.check(f"summary_{n}.txt", message_text(out))
         listings = self.root / "listings"
         self.check("listings.csv", mask(listings.joinpath("listings.csv").read_text(encoding="utf-8-sig")))
@@ -229,6 +236,12 @@ class GoldenTests(unittest.TestCase):
             + contact.contact_for(self.root, 2, "+49 151 2345 6789")
         )
         self.check("drafts.txt", message_text(drafts))
+
+    def test_reports(self):
+        self.analyse_fixture_listings()
+        run = functools.partial(library.reports_for, self.root, settings=self.settings, domain=self.domain)
+        shown = run("/top", []) + run("/top", ["2"]) + run("/compare", ["1", "3", "4"]) + run("/show", ["2"])
+        self.check("reports.txt", message_text(shown))
 
     def test_bot_transcript(self):
         api = Recorder()

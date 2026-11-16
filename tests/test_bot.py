@@ -621,5 +621,60 @@ class BotTests(unittest.TestCase):
         self.assertIn("analysis failed: claude not found", self.api.sent[-1])
 
 
+class ReportsRoutingTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.api = FakeAPI()
+        self.calls = []
+
+        def reports(cmd, args):
+            self.calls.append((cmd, list(args)))
+            if args == ["boom"]:
+                raise ValueError("Usage: nope")
+            return [Message("report", html=True)]
+
+        self.bot = botmod.Bot(self.api, Path(self.dir.name), 1, clock=Clock(), reports=reports)
+
+    def tap(self, data, user=1):
+        self.bot.handle_update({"update_id": 2, "callback_query": {"id": "cb", "from": {"id": user}, "data": data}})
+
+    def test_commands_go_to_the_one_callable(self):
+        self.bot.handle_update(msg(text="/top 10"))
+        self.bot.handle_update(msg(text="/compare 7 12"))
+        self.bot.handle_update(msg(text="/show 7"))
+        self.assertEqual(self.calls, [("/top", ["10"]), ("/compare", ["7", "12"]), ("/show", ["7"])])
+        self.assertEqual(self.api.sent, ["report"] * 3)
+
+    def test_tappable_show_link_with_and_without_the_bot_name(self):
+        self.bot.handle_update(msg(text="/show_12"))
+        self.bot.handle_update(msg(text="/show_13@DealBot"))
+        self.assertEqual(self.calls, [("/show", ["12"]), ("/show", ["13"])])
+
+    def test_show_button(self):
+        self.tap("sh:12")
+        self.assertEqual(self.calls, [("/show", ["12"])])
+        self.tap("sh:x")
+        self.tap("sh:12", user=99)
+        self.assertEqual(len(self.calls), 1)
+
+    def test_problem_is_one_line(self):
+        self.bot.handle_update(msg(text="/compare boom"))
+        self.assertEqual(self.api.sent, ["Usage: nope"])
+
+    def test_not_available_without_the_callable(self):
+        bot = botmod.Bot(self.api, Path(self.dir.name), 1, clock=Clock())
+        bot.handle_update(msg(text="/top"))
+        self.assertEqual(self.api.sent, ["Not available."])
+
+    def test_stranger_gets_nothing(self):
+        self.bot.handle_update(msg(user=99, text="/top"))
+        self.assertEqual((self.calls, self.api.sent), ([], []))
+
+    def test_help_lists_the_commands(self):
+        for word in ("/top", "/compare", "/show"):
+            self.assertIn(word, botmod.HELP)
+
+
 if __name__ == "__main__":
     unittest.main()

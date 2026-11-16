@@ -5,6 +5,7 @@ saved into inbox/<NNN>/ and answered with a short confirmation; everyone else is
 injected (see telegram.py) and python3 -m deal_scout wires it up (see __main__.py).
 """
 
+import functools
 import hashlib
 import json
 import logging
@@ -19,6 +20,7 @@ from pathlib import Path
 from typing import Any, Protocol, TypedDict, cast
 
 from deal_scout import render, usage
+from deal_scout import reports as reports_mod
 from deal_scout.feedback_menu import FixReply
 from deal_scout.inbox import Inbox
 from deal_scout.render import Message
@@ -46,6 +48,9 @@ HELP = (
     "/list  show the latest listings\n"
     "/status  is the bot up to date, is anything being analysed\n"
     "/market  asking prices from your own listings\n"
+    "/top  the best open listings (/top 10 shows more)\n"
+    "/compare 7 12  listings side by side (2 to 4 numbers)\n"
+    "/show 7  the summary of #7 again\n"
     "/sheet  open the Google Sheet\n"
     "/usage  how much Claude the analysis used (7 days, 30 days, all time)\n"
     "/help  this message"
@@ -176,6 +181,7 @@ class Bot:
         sheet_link: str | None = None,
         seller_text: Callable[[int, str, str | None], list[Message]] | None = None,
         fixer: Callable[[int, str, list[str]], FixReply] | None = None,
+        reports: Callable[[str, Sequence[str]], list[Message]] | None = None,
     ) -> None:
         """Wire the bot to its Telegram API, data folder, allowed user and the optional analysis callbacks."""
         self.api = api
@@ -187,6 +193,7 @@ class Bot:
         self.sheet_link = sheet_link
         self.seller_text = seller_text  # callable(n, "msg"|"sms", phone) -> messages for a button tap
         self.fixer = fixer  # callable(n, action, args) -> what to show after a 📝 Feedback tap
+        self.reports = reports  # callable(command, args) -> messages for /top, /compare and /show
         self.pending_reason: PendingReason | None = None  # in memory only; a restart forgets it
         self.attach: PendingAttach | None = None  # reply mode, in memory only
         self.feedback_phone: dict[int, str] = {}  # listing -> phone from a Feedback tap (memory only)
@@ -351,6 +358,7 @@ class Bot:
     def handle_command(self, chat: int | None, cmd: str, args: Sequence[str] = ()) -> None:
         """Answer a slash command from the owner."""
         self.flush_ack(force=True)  # confirm what was saved before answering (e.g. before /done starts)
+        cmd, args = reports_mod.split_show_link(cmd, args)  # a tapped "/show_12" is "/show 12"
         if self.leave_reply_mode(cmd, args):
             return
         handlers: dict[str, Callable[[int | None, Sequence[str]], None]] = {
@@ -364,6 +372,9 @@ class Bot:
             "/sheet": self.cmd_sheet,
             "/market": self.cmd_market,
             "/list": self.cmd_list,
+            "/top": functools.partial(self.run_reports, "/top"),
+            "/compare": functools.partial(self.run_reports, "/compare"),
+            "/show": functools.partial(self.run_reports, "/show"),
         }
         handler = handlers.get(cmd)
         if handler is None:
@@ -455,6 +466,19 @@ class Bot:
         for item in items:
             self.send(item)
 
+    def run_reports(self, cmd: str, chat: int | None, args: Sequence[str]) -> None:
+        """Send what /top, /compare or /show (or a button's sh:N) answer; a problem comes back as one line."""
+        if self.reports is None:
+            self.reply(chat, "Not available.")
+            return
+        try:
+            items = self.reports(cmd, args)
+        except Exception as exc:
+            self.reply(chat, str(exc))
+            return
+        for item in items:
+            self.send(item)
+
     def handle_callback(self, cb: dict[str, Any]) -> None:
         """Answer a tap on a button under a summary: send the message to the seller, or the SMS version."""
         if self.allowed is None or (cb.get("from") or {}).get("id") != self.allowed:
@@ -466,6 +490,9 @@ class Bot:
         parts = str(cb.get("data") or "").split(":")
         if parts[0] in REPLY_TAPS and len(parts) > 1 and parts[1].isdigit():
             self.handle_reply_tap(parts[0], int(parts[1]))
+            return
+        if parts[0] == "sh" and len(parts) > 1 and parts[1].isdigit():
+            self.run_reports("/show", self.allowed, parts[1:2])
             return
         if parts[0] in FIX_PREFIXES and len(parts) > 1 and parts[1].isdigit():
             self.handle_fix(cb, FIX_PREFIXES[parts[0]], int(parts[1]), parts[2:])

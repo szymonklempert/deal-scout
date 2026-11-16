@@ -12,14 +12,14 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
-from deal_scout import sheet, storage
+from deal_scout import storage
 from deal_scout.config import Settings
 from deal_scout.contact import normalise_phone
 from deal_scout.domain import Domain
 from deal_scout.errors import ProcessError
 from deal_scout.feedback import Overrides, apply_overrides, log_feedback, override_count, score_word, scrub_numbers
 from deal_scout.feedback_menu import FixReply, check_screen, checks_screen, confirm, menu, spec_screen
-from deal_scout.process import load_listing, refresh_market, sheet_note, summary_message
+from deal_scout.process import load_listing, refresh_market, sheet_note, stored_summary
 from deal_scout.prompts import Listing
 from deal_scout.render import Message, score_text
 from deal_scout.scoring import ordered_specs
@@ -80,11 +80,8 @@ def fix(
     if action == "done":
         count = override_count(overrides)
         done = Message(f"📝 #{n}: {count} correction(s) saved.", html=True)
-        rows = read_rows(root / "listings" / "listings.csv")
-        if n not in rows:
-            raise ProcessError(f"#{n} is not in listings.csv; re-analyse it with /done {n}")
         phone = normalise_phone(args[0]) if args else None  # the Feedback button carried it; never stored
-        return FixReply(done, edit=True, extra=(summary_message(n, shown, rows, domain, phone, sheet.link(settings)),))
+        return FixReply(done, edit=True, extra=(stored_summary(root, n, domain, settings, phone),))
     if action == "reason":
         return log_reason(root, n, domain, args)
     raise ProcessError(f"unknown action {action}")

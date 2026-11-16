@@ -18,6 +18,8 @@ from deal_scout.scoring import clean, ordered_specs, score, specs_avg
 
 Row = dict[str, Any]  # one listings.csv row
 
+CLOSED_STATUSES = frozenset({"rejected", "sold", "bought", "skip", "closed"})  # statuses of listings no longer in play
+
 # A lock is not "state" in the sense of the no-global-mutable-state rule: it guards files, and holds no data.
 ROWS_LOCK = threading.Lock()
 
@@ -116,6 +118,11 @@ def write_rows(path: Path, rows: Mapping[int, Row], fields: list[str]) -> None:
         w.writeheader()
         for n in sorted(rows):
             w.writerow(rows[n])
+
+
+def is_open(row: Row) -> bool:
+    """Whether the listing is still in play: its status (edited in the CSV by the owner) is not a closed one."""
+    return str(row.get("status") or "").strip().lower() not in CLOSED_STATUSES
 
 
 def sort_key(row: Row) -> tuple[bool, float, int]:
