@@ -59,7 +59,9 @@ def msg(user=1, text=None, photo=None, group=None, caption=None):
     return {"update_id": 1, "message": m}
 
 
-class BotTests(unittest.TestCase):
+class BotCase(unittest.TestCase):
+    """A bot over a temporary folder, with the helpers the bot, command and callback tests share."""
+
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
         self.root = Path(self.dir.name)
@@ -70,6 +72,94 @@ class BotTests(unittest.TestCase):
     def tearDown(self):
         self.dir.cleanup()
 
+    def analysing_bot(self, auto=False, fail=False):
+        done = []
+
+        def processor(n):
+            if fail:
+                raise RuntimeError("claude not found")
+            done.append(n)
+            return [f"#{n} analysed", "Dzień dobry"] if n == 2 else f"#{n} analysed"
+
+        bot = botmod.Bot(
+            self.api, self.root, 1, window_seconds=180, clock=self.clock, processor=processor, auto_analyse=auto
+        )
+        return bot, done
+
+    def drain(self, bot):
+        while not bot.jobs.empty():
+            bot.run_job(bot.jobs.get())
+
+    def tap_bot(self):
+        calls = []
+
+        def seller_text(n, kind, phone):
+            calls.append((n, kind, phone))
+            return [Message(f"{kind} for #{n}")]
+
+        bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, seller_text=seller_text)
+        return bot, calls
+
+    def fix_bot(self, ask=True):
+        calls = []
+
+        def fixer(n, action, args):
+            calls.append((n, action, args))
+            if action == "reason":
+                return FixReply(extra=(Message("Noted."),))
+            return FixReply(
+                Message("menu", buttons=(("A", f"fb:{n}"),), columns=3),
+                edit=action != "open",
+                ask_reason="Solar" if ask and action == "value" else None,
+            )
+
+        return botmod.Bot(self.api, self.root, 1, clock=self.clock, fixer=fixer), calls
+
+    def fix_tap(self, bot, data, user=1, message_id=77):
+        bot.handle_update(
+            {
+                "update_id": 5,
+                "callback_query": {
+                    "id": "c",
+                    "from": {"id": user},
+                    "data": data,
+                    "message": {"message_id": message_id, "chat": {"id": 1}},
+                },
+            }
+        )
+
+    def reply_bot(self, auto=False, processor=True):
+        bot, done = self.analysing_bot(auto=auto)
+        if not processor:
+            bot = botmod.Bot(self.api, self.root, 1, window_seconds=180, clock=self.clock)
+        bot.handle_update(msg(photo="a"))
+        bot.handle_update(msg(text="/new"))
+        self.api.sent.clear()
+        return bot, done
+
+    def tap_reply(self, bot, data, user=1):
+        bot.handle_update({"update_id": 5, "callback_query": {"id": "c", "from": {"id": user}, "data": data}})
+
+    def viewing_bot(self, processor=True):
+        calls = []
+
+        def viewer(n, action, args):
+            calls.append((n, action, args))
+            if action == "boom":
+                raise ValueError("nothing to check")
+            return FixReply(Message(f"list {action}", buttons=(("A", f"vc:{n}:0"),)), edit=action != "start")
+
+        bot, done = self.analysing_bot()
+        bot.viewer = viewer
+        if not processor:
+            bot.processor = None
+        bot.handle_update(msg(photo="a"))
+        bot.handle_update(msg(text="/new"))
+        self.api.sent.clear()
+        return bot, calls, done
+
+
+class BotTests(BotCase):
     def test_stranger_gets_nothing(self):
         self.bot.handle_update(msg(user=99, text="hi"))
         self.assertEqual(self.api.sent, [])
@@ -112,12 +202,6 @@ class BotTests(unittest.TestCase):
         self.bot.handle_update(msg(photo="b"))
         self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001", "002"])
 
-    def test_new_command_forces_new_listing(self):
-        self.bot.handle_update(msg(photo="a"))
-        self.bot.handle_update(msg(text="/new"))
-        self.bot.handle_update(msg(photo="b"))
-        self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001", "002"])
-
     def test_album_is_one_listing_and_acknowledged_once(self):
         self.bot.handle_update(msg(photo="first"))  # one screenshot on its own, then an album: the real case
         for pid in ("a", "b", "c"):
@@ -149,54 +233,12 @@ class BotTests(unittest.TestCase):
         self.bot.handle_update(msg(text="again https://x.pl/a"))
         self.assertEqual((self.root / "inbox/001/links.txt").read_text().split(), ["https://x.pl/a"])
 
-    def test_list_command(self):
-        self.bot.handle_update(msg(photo="a", caption="https://x.pl/1"))
-        self.bot.handle_update(msg(text="/list"))
-        self.assertIn("#1  1 photo(s)  https://x.pl/1", self.api.sent[-1])
-
     def test_state_survives_restart(self):
         self.bot.handle_update(msg(photo="a"))
         self.bot.save_state()
         again = botmod.Bot(self.api, self.root, 1, window_seconds=180, clock=self.clock)
         again.handle_update(msg(photo="b"))
         self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001"])
-
-    def analysing_bot(self, auto=False, fail=False):
-        done = []
-
-        def processor(n):
-            if fail:
-                raise RuntimeError("claude not found")
-            done.append(n)
-            return [f"#{n} analysed", "Dzień dobry"] if n == 2 else f"#{n} analysed"
-
-        bot = botmod.Bot(
-            self.api, self.root, 1, window_seconds=180, clock=self.clock, processor=processor, auto_analyse=auto
-        )
-        return bot, done
-
-    def drain(self, bot):
-        while not bot.jobs.empty():
-            bot.run_job(bot.jobs.get())
-
-    def test_done_analyses_current_listing_and_closes_it(self):
-        bot, done = self.analysing_bot()
-        bot.handle_update(msg(photo="a"))
-        bot.handle_update(msg(text="/done"))
-        self.drain(bot)
-        self.assertEqual(done, [1])
-        self.assertEqual(self.api.sent[-1], "#1 analysed")
-        bot.handle_update(msg(photo="b"))
-        self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001", "002"])
-
-    def test_done_with_number_reanalyses(self):
-        bot, done = self.analysing_bot()
-        bot.handle_update(msg(photo="a"))
-        bot.handle_update(msg(text="/done #1"))
-        bot.handle_update(msg(text="/done 5"))
-        self.drain(bot)
-        self.assertEqual(done, [1])
-        self.assertIn("There is no #5.", self.api.sent)
 
     def test_summary_and_seller_message_sent_separately(self):
         bot, _ = self.analysing_bot()
@@ -238,57 +280,11 @@ class BotTests(unittest.TestCase):
         bot.send(Message("<b>#1 Ducato</b> &amp; more", html=True))
         self.assertEqual(self.api.sent, ["#1 Ducato & more"])
 
-    def test_status_reports_stale_code(self):
-        self.bot.handle_update(msg(text="/status"))
-        self.assertIn("Analysis: off", self.api.sent[-1])
-        self.assertNotIn("restart", self.api.sent[-1])
-        self.bot.version = "old"
-        self.bot.handle_update(msg(text="/status"))
-        self.assertIn("restart it", self.api.sent[-1])
-
     def test_code_version_fingerprints_the_package_files(self):
         files = sorted(Path(botmod.__file__).resolve().parent.glob("*.py"))
         self.assertIn("bot.py", [p.name for p in files])
         expected = hashlib.sha1(b"".join(p.read_bytes() for p in files)).hexdigest()[:8]
         self.assertEqual(botmod.code_version(), expected)
-
-    def test_market_command(self):
-        self.bot.handle_update(msg(text="/market"))
-        self.assertIn("No market data yet", self.api.sent[-1])
-        (self.root / "listings").mkdir()
-        (self.root / "listings" / "market.md").write_text("# Market prices\nmedian 84k")
-        self.bot.handle_update(msg(text="/market"))
-        self.assertIn("median 84k", self.api.sent[-1])
-
-    def tap_bot(self):
-        calls = []
-
-        def seller_text(n, kind, phone):
-            calls.append((n, kind, phone))
-            return [Message(f"{kind} for #{n}")]
-
-        bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, seller_text=seller_text)
-        return bot, calls
-
-    def test_tap_on_message_button_sends_the_draft(self):
-        bot, calls = self.tap_bot()
-        bot.handle_update(
-            {"update_id": 5, "callback_query": {"id": "c1", "from": {"id": 1}, "data": "msg:7:48600123456"}}
-        )
-        bot.handle_update({"update_id": 6, "callback_query": {"id": "c2", "from": {"id": 1}, "data": "sms:7"}})
-        self.assertEqual(calls, [(7, "msg", "48600123456"), (7, "sms", None)])
-        self.assertEqual(self.api.sent, ["msg for #7", "sms for #7"])
-        self.assertEqual(self.api.answered, ["c1", "c2"])
-
-    def test_stranger_tap_is_ignored(self):
-        bot, calls = self.tap_bot()
-        bot.handle_update({"update_id": 5, "callback_query": {"id": "c1", "from": {"id": 99}, "data": "msg:7:"}})
-        self.assertEqual((calls, self.api.sent), ([], []))
-
-    def test_bad_tap_data_is_ignored(self):
-        bot, calls = self.tap_bot()
-        bot.handle_update({"update_id": 5, "callback_query": {"id": "c1", "from": {"id": 1}, "data": "rm:-rf"}})
-        self.assertEqual(calls, [])
 
     def test_callback_buttons_are_not_listed_in_plain_fallback(self):
         self.api.refuse_buttons = True
@@ -311,132 +307,6 @@ class BotTests(unittest.TestCase):
         self.api.refuse_edit = True
         self.bot.edit(1, 55, Message("new"))
         self.assertEqual((self.api.edited, self.api.sent), ([], ["new"]))
-
-    def fix_bot(self, ask=True):
-        calls = []
-
-        def fixer(n, action, args):
-            calls.append((n, action, args))
-            if action == "reason":
-                return FixReply(extra=(Message("Noted."),))
-            return FixReply(
-                Message("menu", buttons=(("A", f"fb:{n}"),), columns=3),
-                edit=action != "open",
-                ask_reason="Solar" if ask and action == "value" else None,
-            )
-
-        return botmod.Bot(self.api, self.root, 1, clock=self.clock, fixer=fixer), calls
-
-    def fix_tap(self, bot, data, user=1, message_id=77):
-        bot.handle_update(
-            {
-                "update_id": 5,
-                "callback_query": {
-                    "id": "c",
-                    "from": {"id": user},
-                    "data": data,
-                    "message": {"message_id": message_id, "chat": {"id": 1}},
-                },
-            }
-        )
-
-    def test_stranger_fix_tap_is_ignored(self):
-        bot, calls = self.fix_bot()
-        self.fix_tap(bot, "fv:1:0:3", user=99)
-        self.assertEqual((calls, self.api.sent, self.api.edited), ([], [], []))
-
-    def test_fix_tap_routes_and_edits_the_tapped_message(self):
-        bot, calls = self.fix_bot()
-        self.fix_tap(bot, "fs:1:4")
-        self.fix_tap(bot, "fx:1")
-        self.assertEqual(calls, [(1, "spec", ["4"]), (1, "open", [])])
-        self.assertEqual(self.api.edited, [(77, "menu", [("A", "fb:1")], 3)])
-        self.assertEqual(self.api.sent, ["menu"])  # "open" sends a new message
-
-    def test_fix_error_is_reported(self):
-        bot, _ = self.fix_bot()
-
-        def broken(n, action, args):
-            raise ValueError("#1 has not been analysed yet")
-
-        bot.fixer = broken
-        self.fix_tap(bot, "fx:1")
-        self.assertEqual(self.api.sent, ["#1: #1 has not been analysed yet"])
-
-    def test_pending_reason_takes_the_next_plain_text(self):
-        bot, calls = self.fix_bot()
-        self.fix_tap(bot, "fv:1:0:3")
-        bot.handle_update(msg(text="panel is only 100 W"))
-        self.assertEqual(calls[-1], (1, "reason", ["Solar", "panel is only 100 W"]))
-        self.assertEqual(self.api.sent, ["Noted."])
-        self.assertFalse((self.root / "inbox").exists() and list((self.root / "inbox").iterdir()))
-        bot.handle_update(msg(text="second note"))  # the reason was taken: this is an ordinary note
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001"])
-
-    def test_url_photo_or_command_clears_the_pending_reason(self):
-        for update in (msg(text="see https://x.pl/a"), msg(photo="a"), msg(text="/list")):
-            bot, calls = self.fix_bot()
-            self.fix_tap(bot, "fv:1:0:3")
-            bot.handle_update(update)
-            bot.handle_update(msg(text="late reason"))
-            self.assertEqual([c[1] for c in calls], ["value"])
-        self.assertTrue((self.root / "inbox/001/links.txt").exists())
-
-    def test_other_taps_and_expiry_clear_the_pending_reason(self):
-        bot, calls = self.fix_bot()
-        self.fix_tap(bot, "fv:1:0:3")
-        self.fix_tap(bot, "fr:1")
-        bot.handle_update(msg(text="late"))
-        self.assertEqual([c[1] for c in calls], ["value", "skip"])
-        self.fix_tap(bot, "fv:1:0:3")
-        self.clock.t += 601
-        bot.handle_update(msg(text="too late"))
-        self.assertEqual([c[1] for c in calls], ["value", "skip", "value"])
-
-    def test_feedback_phone_is_remembered_in_memory_for_done_only(self):
-        bot, calls = self.fix_bot()
-        self.fix_tap(bot, "fx:1:48600111222")
-        self.fix_tap(bot, "fx:2:")
-        self.assertEqual(bot.feedback_phone, {1: "48600111222"})
-        self.fix_tap(bot, "fd:2")
-        self.fix_tap(bot, "fd:1")
-        self.fix_tap(bot, "fd:1")
-        self.assertEqual(calls[2:], [(2, "done", []), (1, "done", ["48600111222"]), (1, "done", [])])
-        self.assertEqual(bot.feedback_phone, {})
-        self.assertFalse((self.root / ".state.json").exists() and "4860" in (self.root / ".state.json").read_text())
-
-    def reply_bot(self, auto=False, processor=True):
-        bot, done = self.analysing_bot(auto=auto)
-        if not processor:
-            bot = botmod.Bot(self.api, self.root, 1, window_seconds=180, clock=self.clock)
-        bot.handle_update(msg(photo="a"))
-        bot.handle_update(msg(text="/new"))
-        self.api.sent.clear()
-        return bot, done
-
-    def tap_reply(self, bot, data, user=1):
-        bot.handle_update({"update_id": 5, "callback_query": {"id": "c", "from": {"id": user}, "data": data}})
-
-    def test_stranger_seller_replied_tap_is_ignored(self):
-        bot, _ = self.reply_bot()
-        self.tap_reply(bot, "sr:1", user=99)
-        self.assertEqual((bot.attach.pending, self.api.sent), (None, []))
-
-    def test_seller_replied_tap_starts_reply_mode_and_clears_the_pending_reason(self):
-        bot, calls = self.fix_bot()
-        bot.handle_update(msg(photo="a"))
-        self.api.sent.clear()
-        self.fix_tap(bot, "fv:1:0:3")
-        self.tap_reply(bot, "sr:1")
-        self.assertIsNone(bot.pending_reason)
-        self.assertEqual(
-            self.api.sent[-1],
-            "📨 #1: send the seller's reply: paste the text or send screenshots. Tap Re-analyse when done.",
-        )
-        self.assertEqual(self.api.buttons[-1], [("✅ Re-analyse", "sa:1"), ("Cancel", "sc:1")])
-        bot.handle_update(msg(text="late reason"))
-        self.assertEqual([c[1] for c in calls], ["value"])  # taken as the seller's reply, not as a reason
 
     def test_messages_in_reply_mode_go_to_the_listing_and_are_confirmed_once(self):
         bot, _ = self.reply_bot()
@@ -548,51 +418,6 @@ class BotTests(unittest.TestCase):
         self.assertIn("reply mode ended after 15 minutes", self.api.sent[1])
         self.assertEqual(sorted(p.name for p in (self.root / "inbox").iterdir()), ["001", "002"])
 
-    def viewing_bot(self, processor=True):
-        calls = []
-
-        def viewer(n, action, args):
-            calls.append((n, action, args))
-            if action == "boom":
-                raise ValueError("nothing to check")
-            return FixReply(Message(f"list {action}", buttons=(("A", f"vc:{n}:0"),)), edit=action != "start")
-
-        bot, done = self.analysing_bot()
-        bot.viewer = viewer
-        if not processor:
-            bot.processor = None
-        bot.handle_update(msg(photo="a"))
-        bot.handle_update(msg(text="/new"))
-        self.api.sent.clear()
-        return bot, calls, done
-
-    def test_stranger_viewing_taps_are_ignored(self):
-        bot, calls, _ = self.viewing_bot()
-        for data in ("vw:1", "vc:1:0", "vf:1", "vx:1"):
-            self.tap_reply(bot, data, user=99)
-        self.assertEqual((calls, bot.attach.pending, self.api.sent), ([], None, []))
-
-    def test_viewing_taps_route_to_the_viewer(self):
-        bot, calls, _ = self.viewing_bot()
-        self.fix_tap(bot, "vw:1")
-        self.fix_tap(bot, "vc:1:3")
-        self.assertEqual(calls, [(1, "start", []), (1, "toggle", ["3"])])
-        self.assertEqual(self.api.sent, ["list start"])  # the first screen is new, the toggle edits the tapped one
-        self.assertEqual(self.api.edited, [(77, "list toggle", [("A", "vc:1:0")], 1)])
-        self.assertEqual((bot.attach.pending.kind, bot.attach.pending.n), ("viewing", 1))
-
-    def test_start_clears_a_pending_reason_and_replaces_another_mode(self):
-        bot, calls = self.fix_bot()
-        bot.viewer = lambda n, action, args: FixReply(Message("list"))
-        bot.handle_update(msg(photo="a"))
-        self.fix_tap(bot, "fv:1:0:3")
-        self.tap_reply(bot, "sr:1")
-        self.assertEqual(bot.attach.pending.kind, "reply")
-        self.fix_tap(bot, "fv:1:0:3")
-        self.fix_tap(bot, "vw:1")
-        self.assertIsNone(bot.pending_reason)
-        self.assertEqual(bot.attach.pending.kind, "viewing")
-
     def test_messages_in_viewing_mode_go_to_the_listing(self):
         bot, _, _ = self.viewing_bot()
         self.fix_tap(bot, "vw:1")
@@ -607,17 +432,6 @@ class BotTests(unittest.TestCase):
         self.assertIn("chain rattles", (folder / "viewing.txt").read_text())
         self.assertFalse((folder / "notes.txt").exists() or (folder / "links.txt").exists())
         self.assertEqual(self.api.sent, ["🔍 #1: 1 photo(s), 1 note(s) saved from the viewing."])
-
-    def test_finish_button_ends_the_mode_edits_the_list_and_queues_the_analysis(self):
-        bot, calls, done = self.viewing_bot()
-        self.fix_tap(bot, "vw:1")
-        self.fix_tap(bot, "vf:1")
-        self.assertIsNone(bot.attach.pending)
-        self.assertEqual(calls[-1], (1, "finish", []))
-        self.assertEqual(self.api.edited[-1][1], "list finish")
-        self.assertEqual(self.api.sent[-1], "#1: analysing, usually about a minute...")
-        self.drain(bot)
-        self.assertEqual(done, [1])
 
     def test_done_in_viewing_mode_finishes_it(self):
         bot, calls, done = self.viewing_bot()
@@ -637,37 +451,10 @@ class BotTests(unittest.TestCase):
         self.drain(bot)
         self.assertEqual(done, [1])
 
-    def test_finish_with_analysis_off_still_ends_the_viewing(self):
-        bot, calls, _ = self.viewing_bot(processor=False)
-        self.fix_tap(bot, "vw:1")
-        self.fix_tap(bot, "vf:1")
-        self.assertIsNone(bot.attach.pending)
-        self.assertIn("Analysis is off", self.api.sent[-1])
-        self.assertTrue(bot.jobs.empty())
-
-    def test_cancel_ends_the_mode_without_analysing(self):
-        bot, calls, done = self.viewing_bot()
-        self.fix_tap(bot, "vw:1")
-        self.fix_tap(bot, "vx:1")
-        self.assertIsNone(bot.attach.pending)
-        self.assertEqual(calls[-1], (1, "cancel", []))
-        self.assertTrue(bot.jobs.empty())
-
     def test_other_commands_leave_viewing_mode_on(self):
         bot, _, _ = self.viewing_bot()
         self.fix_tap(bot, "vw:1")
         bot.handle_update(msg(text="/list"))
-        self.assertIsNotNone(bot.attach.pending)
-
-    def test_viewer_errors_are_reported_and_leave_the_mode_alone(self):
-        bot, _, _ = self.viewing_bot()
-        self.fix_tap(bot, "vw:1")
-        bot.viewer = lambda n, action, args: (_ for _ in ()).throw(ValueError("out of date"))
-        self.fix_tap(bot, "vc:1:0")
-        self.assertEqual(self.api.sent[-1], "#1: out of date")
-        self.assertIsNotNone(bot.attach.pending)
-        bot.viewer = None
-        self.fix_tap(bot, "vx:1")  # not wired: ignored
         self.assertIsNotNone(bot.attach.pending)
 
     def test_viewing_expiry_offers_finish(self):
@@ -678,59 +465,11 @@ class BotTests(unittest.TestCase):
         self.assertIsNone(bot.attach.pending)
         self.assertEqual(self.api.buttons[-1], [("✅ Finish viewing", "vf:1")])
 
-    def test_usage_command(self):
-        self.bot.handle_update(msg(text="/usage"))
-        self.assertIn("Last 7 days: nothing", self.api.sent[-1])
-
-    def test_sheet_command(self):
-        self.bot.handle_update(msg(text="/sheet"))
-        self.assertIn("GOOGLE_SHEET_LINK", self.api.sent[-1])
-        bot = botmod.Bot(
-            self.api, self.root, 1, clock=self.clock, sheet_link="https://docs.google.com/spreadsheets/d/a"
-        )
-        bot.handle_update(msg(text="/sheet"))
-        self.assertEqual(self.api.buttons[-1], [("📊 Open sheet", "https://docs.google.com/spreadsheets/d/a")])
-
     def test_refused_summary_button_falls_back_to_plain_link(self):
         self.api.refuse_buttons = True
         bot, _ = self.analysing_bot()
         bot.send(Message("<b>#1</b>", html=True, buttons=(("📊 Open sheet", "https://docs.google.com/x"),)))
         self.assertEqual(self.api.sent, ["#1", "📊 Open sheet: https://docs.google.com/x"])
-
-    def test_phone_command(self):
-        calls = []
-
-        def contact(n, phone):
-            calls.append((n, phone))
-            return [Message("Dzień dobry", buttons=(("Send on WhatsApp", "https://wa.me/48600123456?text=x"),))]
-
-        bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, contact=contact)
-        bot.handle_update(msg(text="/phone 7 600 123 456"))
-        self.assertEqual(calls, [(7, "600 123 456")])
-        self.assertEqual(self.api.sent, ["Dzień dobry"])
-        self.assertFalse((self.root / "inbox").exists() and list((self.root / "inbox").iterdir()))
-        bot.handle_update(msg(text="/phone 7"))
-        self.assertIn("Usage", self.api.sent[-1])
-
-    def test_phone_command_error_is_reported(self):
-        def contact(n, phone):
-            raise ValueError("#7 has not been analysed yet")
-
-        bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, contact=contact)
-        bot.handle_update(msg(text="/phone 7 600123456"))
-        self.assertIn("not been analysed", self.api.sent[-1])
-
-    def test_done_when_analysis_is_off(self):
-        self.bot.handle_update(msg(photo="a"))
-        self.bot.handle_update(msg(text="/done"))
-        self.assertIn("Analysis is off", self.api.sent[-1])
-
-    def test_stranger_cannot_trigger_analysis(self):
-        bot, done = self.analysing_bot()
-        bot.handle_update(msg(photo="a"))
-        bot.handle_update(msg(user=99, text="/done 1"))
-        self.drain(bot)
-        self.assertEqual(done, [])
 
     def test_auto_analysis_after_window(self):
         bot, done = self.analysing_bot(auto=True)
@@ -750,61 +489,6 @@ class BotTests(unittest.TestCase):
         bot.handle_update(msg(text="/done"))
         self.drain(bot)
         self.assertIn("analysis failed: claude not found", self.api.sent[-1])
-
-
-class ReportsRoutingTests(unittest.TestCase):
-    def setUp(self):
-        self.dir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.dir.cleanup)
-        self.api = FakeAPI()
-        self.calls = []
-
-        def reports(cmd, args):
-            self.calls.append((cmd, list(args)))
-            if args == ["boom"]:
-                raise ValueError("Usage: nope")
-            return [Message("report", html=True)]
-
-        self.bot = botmod.Bot(self.api, Path(self.dir.name), 1, clock=Clock(), reports=reports)
-
-    def tap(self, data, user=1):
-        self.bot.handle_update({"update_id": 2, "callback_query": {"id": "cb", "from": {"id": user}, "data": data}})
-
-    def test_commands_go_to_the_one_callable(self):
-        self.bot.handle_update(msg(text="/top 10"))
-        self.bot.handle_update(msg(text="/compare 7 12"))
-        self.bot.handle_update(msg(text="/show 7"))
-        self.assertEqual(self.calls, [("/top", ["10"]), ("/compare", ["7", "12"]), ("/show", ["7"])])
-        self.assertEqual(self.api.sent, ["report"] * 3)
-
-    def test_tappable_show_link_with_and_without_the_bot_name(self):
-        self.bot.handle_update(msg(text="/show_12"))
-        self.bot.handle_update(msg(text="/show_13@DealBot"))
-        self.assertEqual(self.calls, [("/show", ["12"]), ("/show", ["13"])])
-
-    def test_show_button(self):
-        self.tap("sh:12")
-        self.assertEqual(self.calls, [("/show", ["12"])])
-        self.tap("sh:x")
-        self.tap("sh:12", user=99)
-        self.assertEqual(len(self.calls), 1)
-
-    def test_problem_is_one_line(self):
-        self.bot.handle_update(msg(text="/compare boom"))
-        self.assertEqual(self.api.sent, ["Usage: nope"])
-
-    def test_not_available_without_the_callable(self):
-        bot = botmod.Bot(self.api, Path(self.dir.name), 1, clock=Clock())
-        bot.handle_update(msg(text="/top"))
-        self.assertEqual(self.api.sent, ["Not available."])
-
-    def test_stranger_gets_nothing(self):
-        self.bot.handle_update(msg(user=99, text="/top"))
-        self.assertEqual((self.calls, self.api.sent), ([], []))
-
-    def test_help_lists_the_commands(self):
-        for word in ("/top", "/compare", "/show"):
-            self.assertIn(word, botmod.HELP)
 
 
 class DigestTests(unittest.TestCase):

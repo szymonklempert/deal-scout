@@ -10,22 +10,21 @@ import hashlib
 import json
 import logging
 import queue
-import re
 import threading
 import time
 import urllib.error
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, NotRequired, Protocol, TypedDict, cast
 
 from deal_scout import digest as digest_mod
-from deal_scout import render, usage
-from deal_scout import reports as reports_mod
-from deal_scout.attach import ANALYSIS_OFF, REPLY_TAPS, Attach
+from deal_scout import render
+from deal_scout.attach import ANALYSIS_OFF, Attach
+from deal_scout.callbacks import Callbacks, PendingReason
+from deal_scout.commands import Commands
 from deal_scout.feedback_menu import FixReply
-from deal_scout.inbox import Inbox
+from deal_scout.inbox import URL_RE, Inbox
 from deal_scout.render import Message
 
 log = logging.getLogger("dealscout")
@@ -38,25 +37,6 @@ def code_version() -> str:
     for path in sorted(Path(__file__).resolve().parent.glob("*.py")):
         h.update(path.read_bytes())
     return h.hexdigest()[:8]
-
-
-URL_RE = re.compile(r"https?://[^\s<>\"']+")
-HELP = (
-    "Send me screenshots, links and notes about a listing. Everything sent close together lands in one listing.\n"
-    "/new  start a new listing now\n"
-    "/done  analyse the listing you just sent (/done 7 re-analyses #7)\n"
-    "/phone 7 600 123 456  WhatsApp button for #7's seller message (the number is not saved)\n"
-    "/list  show the latest listings\n"
-    "/status  is the bot up to date, is anything being analysed\n"
-    "/market  asking prices from your own listings\n"
-    "/top  the best open listings (/top 10 shows more)\n"
-    "/compare 7 12  listings side by side (2 to 4 numbers)\n"
-    "/show 7  the summary of #7 again\n"
-    "/digest  the morning digest now\n"
-    "/sheet  open the Google Sheet\n"
-    "/usage  how much Claude the analysis used (7 days, 30 days, all time)\n"
-    "/help  this message"
-)
 
 
 def photo_ids(msg: dict[str, Any]) -> list[str]:
@@ -120,30 +100,6 @@ class BotState(TypedDict):
     last_digest: NotRequired[str]  # the date of the last morning digest; missing in files from before the digest
 
 
-FIX_PREFIXES = {
-    "fx": "open",
-    "fb": "back",
-    "fs": "spec",
-    "fv": "value",
-    "fc": "checks",
-    "fk": "check",
-    "fm": "mark",
-    "fr": "skip",
-    "fd": "done",
-}  # callback prefix -> corrections.fix action
-VIEW_PREFIXES = {"vw": "start", "vc": "toggle", "vf": "finish", "vx": "cancel"}  # callback prefix -> viewing action
-REASON_SECONDS = 600  # how long the next plain text message counts as the reason for a correction
-
-
-@dataclass
-class PendingReason:
-    """A correction waiting for its optional reason: the next plain text message from the owner."""
-
-    n: int
-    name: str
-    until: float
-
-
 class Bot:
     """The bot's brain: saves what the owner sends, answers commands and runs the analysis jobs."""
 
@@ -199,6 +155,8 @@ class Bot:
             self.queue_analysis,
             self.auto_analyse,
         )
+        self.commands = Commands(self)
+        self.callbacks = Callbacks(self)
         self.state: BotState = {"offset": 0, "current": None}
         if self.state_path.exists():
             self.state.update(cast(BotState, json.loads(self.state_path.read_text(encoding="utf-8"))))
@@ -229,7 +187,7 @@ class Bot:
     def handle_update(self, update: dict[str, Any]) -> None:
         """Handle one Telegram update: ignore strangers, run commands, and save photos, notes and links."""
         if update.get("callback_query"):
-            self.handle_callback(update["callback_query"])
+            self.callbacks.handle_callback(update["callback_query"])
             return
         msg = update.get("message")
         if not msg:
@@ -248,11 +206,11 @@ class Bot:
             return  # strangers get no answer at all
         self.attach.expire()
         text = (msg.get("text") or msg.get("caption") or "").strip()
-        if self.consume_reason(msg, text):
+        if self.callbacks.consume_reason(msg, text):
             return
         if text.startswith("/"):
             words = text.split()
-            self.handle_command(chat, words[0].split("@")[0].lower(), words[1:])
+            self.commands.handle(chat, words[0].split("@")[0].lower(), words[1:])
             return
         ids = photo_ids(msg)
         if not ids and not text:
@@ -262,31 +220,6 @@ class Bot:
             self.attach.save(msg, text, ids)
         else:
             self.save_message(msg, text, ids)
-
-    def consume_reason(self, msg: dict[str, Any], text: str) -> bool:
-        """Take a plain text message as the reason for the last correction; any message ends the wait.
-
-        Photos, documents, links and commands are not reasons: they are handled as usual.
-        """
-        pending, self.pending_reason = self.pending_reason, None
-        plain = bool(msg.get("text")) and not (msg.get("photo") or msg.get("document"))
-        if (
-            pending is None
-            or self.fixer is None
-            or self.clock() > pending.until
-            or not plain
-            or text.startswith("/")
-            or URL_RE.search(text)
-        ):
-            return False
-        try:
-            reply = self.fixer(pending.n, "reason", [pending.name, text])
-        except Exception as exc:
-            self.reply(self.allowed, f"#{pending.n}: {exc}")
-            return True
-        log.info("#%d: reason noted", pending.n)
-        self.show(reply, None)
-        return True
 
     def save_message(self, msg: dict[str, Any], text: str, ids: Sequence[str]) -> None:
         """Save a message's photos, note and links into its listing and queue the "saved" confirmation."""
@@ -298,138 +231,6 @@ class Bot:
         log.info("#%d: saved %d photo(s)%s", n, len(ids) - failed, " and text" if text else "")
         # Confirm once, after the photos stop arriving (an album comes as several messages), with the full count.
         self.attach.start_ack(n, "listing")
-
-    def handle_command(self, chat: int | None, cmd: str, args: Sequence[str] = ()) -> None:
-        """Answer a slash command from the owner."""
-        self.attach.flush_ack(force=True)  # confirm what was saved before answering (e.g. before /done starts)
-        cmd, args = reports_mod.split_show_link(cmd, args)  # a tapped "/show_12" is "/show 12"
-        viewing = self.attach.pending if self.attach.pending and self.attach.pending.kind == "viewing" else None
-        if viewing and cmd == "/done" and not args:
-            self.handle_viewing(None, "finish", viewing.n, [])  # /done in a viewing finishes it
-            return
-        if self.attach.leave_for_command(cmd, args):
-            return
-        handlers: dict[str, Callable[[int | None, Sequence[str]], None]] = {
-            "/start": self.cmd_help,
-            "/help": self.cmd_help,
-            "/new": self.cmd_new,
-            "/done": self.done,
-            "/phone": self.phone,
-            "/status": self.cmd_status,
-            "/usage": self.cmd_usage,
-            "/sheet": self.cmd_sheet,
-            "/market": self.cmd_market,
-            "/list": self.cmd_list,
-            "/top": functools.partial(self.run_reports, "/top"),
-            "/compare": functools.partial(self.run_reports, "/compare"),
-            "/show": functools.partial(self.run_reports, "/show"),
-            "/digest": self.cmd_digest,
-        }
-        handler = handlers.get(cmd)
-        if handler is None:
-            self.reply(chat, "Unknown command. /help")
-            return
-        handler(chat, args)
-
-    def cmd_help(self, chat: int | None, args: Sequence[str]) -> None:
-        """Send the list of commands."""
-        self.reply(chat, HELP)
-
-    def cmd_new(self, chat: int | None, args: Sequence[str]) -> None:
-        """Make the next message start a new listing."""
-        self.state["current"] = None
-        self.reply(chat, "Next message starts a new listing.")
-
-    def cmd_status(self, chat: int | None, args: Sequence[str]) -> None:
-        """Report the bot's version and queue."""
-        self.reply(chat, self.status())
-
-    def cmd_usage(self, chat: int | None, args: Sequence[str]) -> None:
-        """Report how much Claude the analysis used."""
-        self.reply(chat, usage.summary(self.root / "logs" / "usage.jsonl"))
-
-    def cmd_sheet(self, chat: int | None, args: Sequence[str]) -> None:
-        """Send the link to the Google Sheet."""
-        if self.sheet_link:
-            self.send(Message("Your listings sheet:", buttons=(("📊 Open sheet", self.sheet_link),)))
-        else:
-            self.reply(
-                chat,
-                "No sheet link yet: put the spreadsheet's address in .env as GOOGLE_SHEET_LINK and restart the bot.",
-            )
-
-    def cmd_market(self, chat: int | None, args: Sequence[str]) -> None:
-        """Send market.md, cut to Telegram's size limit."""
-        path = self.root / "listings" / "market.md"
-        self.reply(
-            chat,
-            path.read_text(encoding="utf-8")[:4000]
-            if path.exists()
-            else "No market data yet: it is built after the first analysis.",
-        )
-
-    def cmd_list(self, chat: int | None, args: Sequence[str]) -> None:
-        """List the latest inbox folders with their photo and link counts."""
-        nums = self.inbox.latest()
-        if not nums:
-            self.reply(chat, "Nothing saved yet.")
-            return
-        lines = []
-        for n in nums:
-            photos, links = self.inbox.summary(n)
-            lines.append(f"#{n}  {photos} photo(s)  {links[0] if links else 'no link'}")
-        self.reply(chat, "\n".join(lines))
-
-    def done(self, chat: int | None, args: Sequence[str]) -> None:
-        """Queue the analysis of the open listing, or of the listing number given."""
-        if self.processor is None:
-            self.reply(chat, ANALYSIS_OFF)
-            return
-        if args and args[0].lstrip("#").isdigit():
-            n = int(args[0].lstrip("#"))
-            if not (self.inbox.dir / f"{n:03d}").is_dir():
-                self.reply(chat, f"There is no #{n}.")
-                return
-        elif cur := self.state.get("current"):
-            n = cur["n"]
-            self.state["current"] = None  # whatever comes next is a new listing
-        else:
-            self.reply(chat, "No open listing. Send screenshots first, or /done 7 to re-analyse #7.")
-            return
-        self.queue_analysis(n)
-
-    def phone(self, chat: int | None, args: Sequence[str]) -> None:
-        """Build the seller message with a WhatsApp button for a listing from a phone number given in chat."""
-        if len(args) < 2 or not args[0].lstrip("#").isdigit():
-            self.reply(chat, "Usage: /phone 7 600 123 456")
-            return
-        n = int(args[0].lstrip("#"))
-        if self.contact is None:
-            self.reply(chat, "Not available.")
-            return
-        try:
-            items = self.contact(n, " ".join(args[1:]))
-        except Exception as exc:
-            self.reply(chat, f"#{n}: {exc}")
-            return
-        for item in items:
-            self.send(item)
-
-    def cmd_digest(self, chat: int | None, args: Sequence[str]) -> None:
-        """Send the morning digest now, without counting it as today's."""
-        if self.digest is None:
-            self.reply(chat, "Not available.")
-            return
-        try:
-            items = self.digest(save=False)
-        except Exception as exc:
-            log.exception("digest failed")
-            self.reply(chat, f"The digest failed: {exc}")
-            return
-        if not items:
-            self.reply(chat, "Nothing to report today.")
-        for item in items:
-            self.send(item)
 
     def send_digest_if_due(self) -> None:
         """Send the day's digest once, the first tick after its time (so a restart later in the day catches up)."""
@@ -446,96 +247,12 @@ class Bot:
         except Exception:  # the digest is a bonus: log it and carry on
             log.exception("morning digest failed")
 
-    def run_reports(self, cmd: str, chat: int | None, args: Sequence[str]) -> None:
-        """Send what /top, /compare or /show (or a button's sh:N) answer; a problem comes back as one line."""
-        if self.reports is None:
-            self.reply(chat, "Not available.")
-            return
-        try:
-            items = self.reports(cmd, args)
-        except Exception as exc:
-            self.reply(chat, str(exc))
-            return
-        for item in items:
-            self.send(item)
-
-    def handle_callback(self, cb: dict[str, Any]) -> None:
-        """Answer a tap on a button under a summary: send the message to the seller, or the SMS version."""
-        if self.allowed is None or (cb.get("from") or {}).get("id") != self.allowed:
-            return  # strangers get no answer at all
-        try:
-            self.api.answer_callback(cb["id"])  # stops the button's loading spinner
-        except Exception as exc:
-            log.warning("answerCallbackQuery failed: %s", exc)
-        parts = str(cb.get("data") or "").split(":")
-        if parts[0] in REPLY_TAPS and len(parts) > 1 and parts[1].isdigit():
-            if parts[0] == "sr":
-                self.pending_reason = None  # the next messages are the seller's reply
-            self.attach.tap(parts[0], int(parts[1]))
-            return
-        if parts[0] in VIEW_PREFIXES and len(parts) > 1 and parts[1].isdigit():
-            self.handle_viewing(cb.get("message"), VIEW_PREFIXES[parts[0]], int(parts[1]), parts[2:])
-            return
-        if parts[0] == "sh" and len(parts) > 1 and parts[1].isdigit():
-            self.run_reports("/show", self.allowed, parts[1:2])
-            return
-        if parts[0] in FIX_PREFIXES and len(parts) > 1 and parts[1].isdigit():
-            self.handle_fix(cb, FIX_PREFIXES[parts[0]], int(parts[1]), parts[2:])
-            return
-        if len(parts) < 2 or parts[0] not in ("msg", "sms") or not parts[1].isdigit() or self.seller_text is None:
-            return
-        n = int(parts[1])
-        try:
-            items = self.seller_text(n, parts[0], parts[2] if len(parts) > 2 else None)
-        except Exception as exc:
-            self.reply(self.allowed, f"#{n}: {exc}")
-            return
-        log.info("#%d: sent the %s draft", n, parts[0])
-        for item in items:
-            self.send(item)
-
-    def handle_viewing(self, tapped: dict[str, Any] | None, action: str, n: int, args: list[str]) -> None:
-        """Answer a tap in the 🔍 Viewing checklist (the sender was already checked), or a /done that finishes it."""
-        if self.viewer is None:
-            return
-        self.attach.flush_ack(force=True)
-        try:
-            reply = self.viewer(n, action, args)
-        except Exception as exc:
-            self.reply(self.allowed, f"#{n}: {exc}")
-            return
-        if action == "start":
-            self.pending_reason = None  # the next messages are the owner's viewing notes
-        self.attach.viewing_tap(action, n)
-        self.show(reply, tapped)
-        if action == "finish":
-            self.request_analysis(n)
-
     def request_analysis(self, n: int) -> None:
         """Queue listing n for analysis, or say that analysis is off."""
         if self.processor is None:
             self.reply(self.allowed, ANALYSIS_OFF)
             return
         self.queue_analysis(n)
-
-    def handle_fix(self, cb: dict[str, Any], action: str, n: int, args: list[str]) -> None:
-        """Answer a tap in the 📝 Feedback menu (the sender was already checked): show the next screen."""
-        if self.fixer is None:
-            return
-        if action == "open" and args and args[0].isdigit():
-            self.feedback_phone[n] = args[0]  # in memory only, for the summary shown after Done
-        if action == "done" and n in self.feedback_phone:
-            args = [self.feedback_phone.pop(n)]
-        try:
-            reply = self.fixer(n, action, args)
-        except Exception as exc:
-            self.pending_reason = None
-            self.reply(self.allowed, f"#{n}: {exc}")
-            return
-        self.pending_reason = (
-            PendingReason(n, reply.ask_reason, self.clock() + REASON_SECONDS) if reply.ask_reason else None
-        )
-        self.show(reply, cb.get("message"))
 
     def show(self, reply: FixReply, tapped: dict[str, Any] | None) -> None:
         """Show a fix reply: edit the tapped message (or send anew), then send the extra messages."""

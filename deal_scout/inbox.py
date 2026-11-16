@@ -5,6 +5,7 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
+URL_RE = re.compile(r"https?://[^\s<>\"']+")
 REPLY_LINE = re.compile(r"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] ", re.MULTILINE)  # start of one saved reply text
 
 
