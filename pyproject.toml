@@ -10,7 +10,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "deal-scout"
-version = "0.1.0"
+version = "0.2.0"
 description = "A private Telegram assistant that reviews second-hand listings before you buy"
 readme = "README.md"
 license = "MIT"
