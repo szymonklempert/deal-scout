@@ -77,8 +77,8 @@ Needs Python 3.10+ and [Claude Code](https://code.claude.com) logged in (or an A
 ## Development
 
 ```sh
-python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/ruff check . && .venv/bin/mypy && python3 -m unittest discover -s tests
+uv sync                                   # dev tools (ruff, mypy), pinned in uv.lock
+uv run ruff check . && uv run mypy && uv run python -m unittest discover -s tests
 ```
 
 Standard-library Python, one module per job in `deal_scout/`. CI runs lint, types and tests on Python 3.10 and 3.12;

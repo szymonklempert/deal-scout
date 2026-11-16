@@ -1,5 +1,23 @@
-# Dev tooling only: deal-scout runs from a checkout (python3 -m deal_scout) and the bot never imports these tools.
-# Install them with: pip install -r requirements-dev.txt
+# deal-scout runs from a checkout (python3 -m deal_scout) and needs only the standard library. uv manages the dev
+# tools and the optional provider SDKs: `uv sync` (dev tools), `uv sync --extra anthropic` (Claude API provider).
+
+[project]
+name = "deal-scout"
+version = "0.1.0"
+description = "A private Telegram assistant that reviews second-hand listings before you buy"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+anthropic = ["anthropic"]  # PROVIDER=anthropic
+openai = ["openai"]        # PROVIDER=openai or openrouter
+
+[dependency-groups]
+dev = ["ruff==0.17.5", "mypy==2.4.1"]
+
+[tool.uv]
+package = false  # an app run from the checkout, not an installable package
 
 [tool.ruff]
 line-length = 120
