@@ -64,10 +64,14 @@ It runs on your Claude subscription through Claude Code by default, or on the Cl
 
 ## Quick start
 
-1. `cp .env.example .env && chmod 600 .env`, and add a bot token from @BotFather.
-2. Copy `domains/campervan/criteria.example.md` to `criteria.md` and fill in what you're looking for.
-3. `python3 -m deal_scout`, message the bot, and put the user ID it replies with into `.env`.
+1. `uv sync`, then `uv run deal-scout init`: it creates `.env` and `domains/campervan/criteria.md` (from the example)
+   and the data folders, and never overwrites anything.
+2. Add a bot token from @BotFather to `.env`, and write what you're looking for in `criteria.md`.
+3. `uv run deal-scout`, message the bot, and put the user ID it replies with into `.env`.
 4. Send a listing, then `/done`.
+
+Your data lives in the checkout, or in `DEAL_SCOUT_HOME` (a real environment variable; `~/.deal-scout` when
+installed as a package). `python3 -m deal_scout` still works from the checkout.
 
 Needs Python 3.12+ and [Claude Code](https://code.claude.com) logged in (or an API key). Optional:
 [Google Sheet](deploy/google-sheet.md) · [always-on Linux box](deploy/README.md) · [new domain](domains/README.md).

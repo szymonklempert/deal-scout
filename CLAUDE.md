@@ -54,6 +54,13 @@ anything.
 - The tone is practical and cautious: a clear "skip" is a useful answer. Say what you could not verify.
 
 ## The code
+- **The data folder:** the owner's `.env`, `.state.json`, `inbox/`, `listings/`, `logs/` and `domains/` live in the
+  data home: `DEAL_SCOUT_HOME` (a real environment variable), else the legacy `CAMPERVAN_ROOT`, else this checkout,
+  else `~/.deal-scout` when installed as a package. `deal_scout/config.py` decides (`data_home()`); the code's own
+  location is `PACKAGE_DIR`. Domains are looked up in the data home first, then the built-in ones shipped with the code.
+- **Builds are public:** a wheel or sdist must never contain `criteria.md`, `.env`, `.state.json`, `inbox/`,
+  `listings/` or `logs/`. `pyproject.toml` excludes them and `make dist` (`scripts/check_dist.py`, also run in CI)
+  fails if one slips in. Keep both when changing the build.
 - **Claude settings:** `.claude/settings.json` (shared) blocks reading `.env` and `.state.json`, fetching listing
   sites, starting the live bot and force-pushing, and asks before pushes, analyses and sheet copies. Personal
   overrides go in `.claude/settings.local.json` (git-ignored). Keep it compatible with the headless analysis run.
@@ -78,6 +85,10 @@ anything.
 - **Domains:** nothing in `deal_scout/` may be specific to one domain. Domain knowledge goes in `domains/<name>/`.
 - **Modules** (one job each, no import cycles):
   - `deal_scout/process.py` ties one listing's analysis together (CLI: `python3 -m deal_scout.process N`);
+    `apply_review` turns a structured review into stored state and the summary, whoever produced it;
+  - `deal_scout/cli.py` the `deal-scout` command (run, init, process, sheet, market, usage), each calling the module's
+    `main()`; `deal_scout/scaffold.py` is `init`: it creates the data folder and never overwrites;
+  - `deal_scout/validation.py` checks a review against the domain's schema (pure);
   - `deal_scout/analysis.py` runs Claude Code or the API provider;
   - `deal_scout/prompts.py` the prompt and the JSON schema;
   - `deal_scout/scoring.py` the score from the criteria checks (pure);
@@ -96,7 +107,7 @@ anything.
   - `deal_scout/digest.py` the morning digest and its schedule (pure);
   - `deal_scout/library.py` reads the stored listings for /show, /top, /compare and the digest;
   - `deal_scout/config.py` reads `.env` and the environment once into `Settings` (nothing else reads `os.environ`) and
-    defines the project root;
+    finds the data home;
   - `deal_scout/domain.py` loads the active domain;
   - `deal_scout/market.py` builds `listings/market.md`;
   - `deal_scout/sheet.py` copies rows to a Google Sheet through `deploy/google-sheet.gs`;
