@@ -55,13 +55,35 @@ def process_listing(
     nnn = f"{n:03d}"
     if not (root / "inbox" / nnn).is_dir():
         raise ProcessError(f"inbox/{nnn} does not exist")
-    listings = root / "listings"
-    listings.mkdir(exist_ok=True)
     if model:  # an explicit model (tests, a one-off run) wins over .env
         settings = dataclasses.replace(settings, model=model)
+    data = analyse(root, nnn, domain, settings, runner=runner, client=client)
+    return apply_review(root, n, data, settings=settings, domain=domain, pusher=pusher)
+
+
+def apply_review(
+    root: Path | str,
+    n: int,
+    data: Listing,
+    *,
+    settings: Settings,
+    domain: Domain,
+    pusher: Callable[..., None] | None = None,
+) -> list[Message]:
+    """Turn a structured review of listing n into stored state (card, JSON, CSV, index, market, sheet) and its summary.
+
+    The one place where a review, whoever produced it, becomes stored state. A non-empty `card_markdown` in data is
+    written as the card; without it the card is already on disk (Claude Code writes it itself).
+    """
+    root = Path(root)
+    nnn = f"{n:03d}"
+    listings = root / "listings"
+    listings.mkdir(exist_ok=True)
     if pusher is None:
         pusher = functools.partial(sheet.push, settings=settings)
-    data = analyse(root, nnn, domain, settings, runner=runner, client=client)
+    card = (data.pop("card_markdown", "") or "").strip()
+    if card:
+        (listings / (nnn + ".md")).write_text(card + "\n", encoding="utf-8")
     raw_phone = data.pop("seller_phone", None)
     phone = normalise_phone(raw_phone)  # used for the button only, never saved
     scrub_phone(listings / (nnn + ".md"), raw_phone)

@@ -97,7 +97,7 @@ def analyse(
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     client: Any = None,
 ) -> Listing:
-    """Run the analysis with PROVIDER from .env. API providers return the card's text, written here."""
+    """Run the analysis with PROVIDER from .env and return the data (API providers add card_markdown)."""
     try:
         provider = providers.name(settings)
         model = providers.model_for(provider, settings)
@@ -123,6 +123,4 @@ def analyse(
     if stats.get("cost_usd") is None:
         stats["cost_usd"] = providers.price(stats["input_tokens"], stats["output_tokens"], settings.price_per_mtok)
     usage.record_api(root, int(nnn), True, provider, model, stats)
-    card = (data.pop("card_markdown", "") or "").strip()
-    (Path(root) / "listings" / (nnn + ".md")).write_text(card + "\n", encoding="utf-8")
     return data

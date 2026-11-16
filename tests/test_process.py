@@ -378,3 +378,26 @@ class ProcessListingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ApplyReviewTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+
+    def apply(self, data):
+        return process.apply_review(self.root, 1, data, settings=SETTINGS, domain=CAMPERVAN, pusher=None)
+
+    def test_card_markdown_is_written_and_scrubbed_of_the_phone(self):
+        out = self.apply(dict(RESULT, card_markdown="# Card\nCall 600 123 456\n"))
+        card = (self.root / "listings" / "001.md").read_text()
+        self.assertEqual(card, "# Card\nCall [phone removed]\n")
+        self.assertNotIn("card_markdown", json.loads((self.root / "listings" / "001.json").read_text()))
+        self.assertEqual(len(out), 1)
+
+    def test_without_card_markdown_the_existing_card_is_left_alone(self):
+        (self.root / "listings").mkdir()
+        (self.root / "listings" / "001.md").write_text("written by Claude Code\n")
+        self.apply(dict(RESULT))
+        self.assertEqual((self.root / "listings" / "001.md").read_text(), "written by Claude Code\n")
