@@ -20,7 +20,7 @@ most of them (see "Development" in the README). Where a tool and this page disag
 
 ## Typing
 
-- **Type hints on every public function and method**, in Python 3.10+ syntax: `str | None`, `list[str]`,
+- **Type hints on every public function and method**, in Python 3.12+ syntax: `str | None`, `list[str]`,
   `dict[str, int]`. `from __future__ import annotations` is not needed.
 - **Structured data gets a type.** Use a `@dataclass` (frozen where it never changes) or a `TypedDict` instead of
   a loose `dict` when the same keys travel between modules: an outgoing Telegram message, usage stats, a CSV row.
