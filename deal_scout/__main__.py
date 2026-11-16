@@ -6,7 +6,7 @@ import logging.handlers
 import sys
 from pathlib import Path
 
-from deal_scout import contact, corrections, domain, library, process, providers, sheet
+from deal_scout import contact, corrections, digest, domain, library, process, providers, sheet
 from deal_scout.bot import Bot, log
 from deal_scout.config import ROOT, Settings, load_env
 from deal_scout.telegram import TelegramAPI
@@ -40,6 +40,9 @@ def main() -> None:
     except domain.DomainError as exc:
         sys.exit(str(exc))
 
+    digest_time = digest.parse_time(settings.digest_time)
+    if digest_time is None and not digest.is_off(settings.digest_time):
+        log.warning("DIGEST_TIME is not HH:MM (e.g. 09:00): the morning digest is off")
     processor = functools.partial(process.process_listing, ROOT, settings=settings, domain=d)
     analyse = mode in ("manual", "auto")
     bot = Bot(
@@ -54,6 +57,8 @@ def main() -> None:
         seller_text=functools.partial(contact.seller_text, ROOT),
         fixer=functools.partial(corrections.fix, ROOT, settings=settings, domain=d),
         reports=functools.partial(library.reports_for, ROOT, settings=settings, domain=d),
+        digest=functools.partial(library.digest_messages, ROOT, domain=d),
+        digest_time=digest_time,
     )
     try:
         provider = providers.name(settings)

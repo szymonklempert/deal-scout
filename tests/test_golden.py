@@ -13,11 +13,12 @@ import os
 import re
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 from fakes import FakeAnthropic, FakeOpenAI, FakeRunner
 
-from deal_scout import analysis, config, contact, corrections, domain, library, process
+from deal_scout import analysis, config, contact, corrections, domain, library, process, storage
 from deal_scout import bot as botmod
 from deal_scout.render import Message
 
@@ -242,6 +243,24 @@ class GoldenTests(unittest.TestCase):
         run = functools.partial(library.reports_for, self.root, settings=self.settings, domain=self.domain)
         shown = run("/top", []) + run("/top", ["2"]) + run("/compare", ["1", "3", "4"]) + run("/show", ["2"])
         self.check("reports.txt", message_text(shown))
+
+    def test_digest(self):
+        self.analyse_fixture_listings()
+        listings = self.root / "listings"
+        rows = storage.read_rows(listings / "listings.csv")
+        for n, row in rows.items():  # first_seen is the real date: pin it
+            row["first_seen"] = "2026-11-15" if n > 8 else "2026-11-01"
+        rows[5]["status"] = "sold"
+        storage.write_rows(listings / "listings.csv", rows, storage.csv_fields(self.domain))
+        for n, when in (
+            (1, datetime(2026, 11, 12, 10, 0)),
+            (2, datetime(2026, 11, 9, 18, 30)),
+            (3, datetime(2026, 11, 14, 9, 0)),
+        ):
+            contact.seller_text(self.root, n, "msg", "", now=when)
+        library.write_snapshot(listings / "digest.json", {"phone": (1000.0, 9)}, datetime(2026, 11, 15, 9, 0))
+        out = library.digest_messages(self.root, domain=self.domain, now=datetime(2026, 11, 16, 9, 0))
+        self.check("digest.txt", message_text(out))
 
     def test_bot_transcript(self):
         api = Recorder()

@@ -1,6 +1,7 @@
 import hashlib
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 from deal_scout import bot as botmod
@@ -674,6 +675,109 @@ class ReportsRoutingTests(unittest.TestCase):
     def test_help_lists_the_commands(self):
         for word in ("/top", "/compare", "/show"):
             self.assertIn(word, botmod.HELP)
+
+
+class DigestTests(unittest.TestCase):
+    """The morning digest: scheduled in tick(), on request with /digest."""
+
+    TIME = datetime(2026, 11, 16, 9, 30).timestamp()
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.root = Path(self.dir.name)
+        self.api = FakeAPI()
+        self.clock = Clock()
+        self.clock.t = self.TIME
+        self.calls = 0
+        self.items = [Message("digest")]
+
+    def digest(self):
+        self.calls += 1
+        return self.items
+
+    def make(self, digest_time=(9, 0)):
+        return botmod.Bot(self.api, self.root, 1, clock=self.clock, digest=self.digest, digest_time=digest_time)
+
+    def test_sent_once_a_day_after_its_time(self):
+        bot = self.make()
+        self.clock.t = datetime(2026, 11, 16, 8, 59).timestamp()
+        bot.tick()
+        self.assertEqual(self.calls, 0)
+        self.clock.t = self.TIME
+        bot.tick()
+        bot.tick()
+        self.assertEqual((self.calls, self.api.sent), (1, ["digest"]))
+        self.assertEqual(bot.state["last_digest"], "2026-11-16")
+        self.clock.t += 86400
+        bot.tick()
+        self.assertEqual(self.calls, 2)
+
+    def test_restart_after_the_time_catches_up_but_not_twice(self):
+        self.make().tick()
+        again = self.make()  # restarted later the same day: .state.json remembers
+        again.tick()
+        self.assertEqual(self.calls, 1)
+        self.api.sent.clear()
+        (self.root / ".state.json").unlink()
+        self.make().tick()  # a fresh state past 09:00 sends it
+        self.assertEqual(self.api.sent, ["digest"])
+
+    def test_state_file_from_before_the_digest_loads(self):
+        (self.root / ".state.json").write_text('{"offset": 5, "current": null}')
+        bot = self.make()
+        self.assertEqual(bot.state["offset"], 5)
+        self.assertNotIn("last_digest", bot.state)
+        bot.tick()
+        self.assertEqual(self.calls, 1)
+
+    def test_off_or_not_wired_sends_nothing(self):
+        self.make(digest_time=None).tick()
+        botmod.Bot(self.api, self.root, 1, clock=self.clock, digest_time=(9, 0)).tick()
+        self.assertEqual((self.calls, self.api.sent), (0, []))
+
+    def test_nothing_to_say_is_still_todays_digest(self):
+        self.items = []
+        bot = self.make()
+        bot.tick()
+        bot.tick()
+        self.assertEqual((self.calls, self.api.sent), (1, []))
+
+    def test_a_failing_digest_is_not_retried_every_tick(self):
+        def boom():
+            self.calls += 1
+            raise RuntimeError("no")
+
+        bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, digest=boom, digest_time=(9, 0))
+        bot.tick()
+        bot.tick()
+        self.assertEqual(self.calls, 1)
+
+    def test_command_sends_it_without_changing_last_digest(self):
+        bot = self.make(digest_time=None)
+        bot.handle_update(msg(text="/digest"))
+        self.assertEqual(self.api.sent, ["digest"])
+        self.assertNotIn("last_digest", bot.state)
+
+    def test_command_with_nothing_to_report(self):
+        self.items = []
+        self.make().handle_update(msg(text="/digest"))
+        self.assertEqual(self.api.sent, ["Nothing to report today."])
+
+    def test_command_problems(self):
+        botmod.Bot(self.api, self.root, 1, clock=self.clock).handle_update(msg(text="/digest"))
+        self.assertEqual(self.api.sent, ["Not available."])
+
+        def boom():
+            raise RuntimeError("disk")
+
+        bot = botmod.Bot(self.api, self.root, 1, clock=self.clock, digest=boom)
+        bot.handle_update(msg(text="/digest"))
+        self.assertEqual(self.api.sent[-1], "The digest failed: disk")
+
+    def test_stranger_gets_nothing(self):
+        self.make().handle_update(msg(user=99, text="/digest"))
+        self.assertEqual((self.calls, self.api.sent), (0, []))
 
 
 if __name__ == "__main__":

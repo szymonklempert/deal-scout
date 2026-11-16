@@ -1,9 +1,11 @@
 """Read the stored listings and answer /show, /top and /compare: the I/O around reports.py's pure builders."""
 
+import json
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 
-from deal_scout import reports, storage
+from deal_scout import digest, market, reports, storage
 from deal_scout.config import Settings
 from deal_scout.domain import Domain
 from deal_scout.errors import ProcessError
@@ -11,11 +13,11 @@ from deal_scout.feedback import apply_overrides
 from deal_scout.process import read_listing, stored_summary
 from deal_scout.render import Message
 from deal_scout.reports import Entry
-from deal_scout.storage import read_rows
+from deal_scout.storage import Row, read_rows
 
 
-def load_entries(root: Path, domain: Domain) -> dict[int, Entry]:
-    """Every listing in listings.csv as an Entry, with the owner's corrections applied to its spec scores."""
+def read_all(root: Path, domain: Domain) -> tuple[dict[int, Row], dict[int, Entry]]:
+    """Read listings.csv and every listing's JSON: the CSV rows, and an Entry per row with corrections applied."""
     listings = root / "listings"
     with storage.ROWS_LOCK:  # an analysis or a correction must not rewrite the files while they are read
         rows = read_rows(listings / "listings.csv")
@@ -25,7 +27,39 @@ def load_entries(root: Path, domain: Domain) -> dict[int, Entry]:
         data = stored[n]
         shown = apply_overrides(data, data.get("overrides") or {}) if data else None
         out[n] = reports.make_entry(n, row, shown, domain.specs, data)
-    return out
+    return rows, out
+
+
+def load_entries(root: Path, domain: Domain) -> dict[int, Entry]:
+    """Every listing in listings.csv as an Entry, with the owner's corrections applied to its spec scores."""
+    return read_all(root, domain)[1]
+
+
+def read_snapshot(path: Path) -> digest.Medians:
+    """Return the market medians saved by the last digest ({label: (median, n)}); empty when there is none yet."""
+    try:
+        saved = json.loads(path.read_text(encoding="utf-8"))["medians"]
+        return {str(label): (float(m), int(n)) for label, (m, n) in saved.items()}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return {}
+
+
+def write_snapshot(path: Path, medians: digest.Medians, now: datetime) -> None:
+    """Save this digest's market medians for the next one to compare with."""
+    record = {"medians": {label: list(v) for label, v in medians.items()}, "sent": now.strftime(digest.DATE_FORMAT)}
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def digest_messages(root: Path, *, domain: Domain, now: datetime | None = None) -> list[Message]:
+    """Build the digest from the stored listings and save the market snapshot the next one compares with."""
+    now = now or datetime.now()
+    rows, entries = read_all(root, domain)
+    medians = market.group_medians(list(rows.values()), domain.market)
+    path = root / "listings" / "digest.json"
+    messages = digest.build(list(entries.values()), now, medians, read_snapshot(path))
+    write_snapshot(path, medians, now)
+    return messages
 
 
 def show(root: Path, args: Sequence[str], *, settings: Settings, domain: Domain) -> list[Message]:

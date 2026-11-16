@@ -212,11 +212,26 @@ def section_lines(
     return lines
 
 
-def build(rows: Sequence[Row], cfg: Mapping[str, Any] | None = None, today: str | None = None) -> str:
-    """market.md text. cfg: the domain's "market" settings from domain.json."""
+def prepare(
+    rows: Sequence[Row], cfg: Mapping[str, Any] | None
+) -> tuple[dict[str, Any], list[list[Row]], Group, int, int]:
+    """Merge the settings with the defaults and split the rows into items and priced members, with what was left out."""
     cfg = dict(DEFAULTS, **(cfg or {}))
     all_vans = items(rows, cfg["same_item_key"])
     members, no_price, suspicious = select_members(all_vans)
+    return cfg, all_vans, members, no_price, suspicious
+
+
+def group_medians(rows: Sequence[Row], cfg: Mapping[str, Any] | None = None) -> dict[str, tuple[float, int]]:
+    """Return each top-level group's label (as in market.md's headings) with its median asking price and item count."""
+    cfg, _, members, _, _ = prepare(rows, cfg)
+    top = groups(members, list(cfg["group_by"]), cfg)
+    return {" · ".join(g): (statistics.median(p for _, p in top[g]), len(top[g])) for g in sorted(top)}
+
+
+def build(rows: Sequence[Row], cfg: Mapping[str, Any] | None = None, today: str | None = None) -> str:
+    """market.md text. cfg: the domain's "market" settings from domain.json."""
+    cfg, all_vans, members, no_price, suspicious = prepare(rows, cfg)
     lines = header_lines(today, len(all_vans), len(rows), no_price, suspicious)
     gb, db, fb = list(cfg["group_by"]), list(cfg["detail_by"]), list(cfg["finest_by"])
     top = groups(members, gb, cfg)

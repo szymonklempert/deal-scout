@@ -1,13 +1,18 @@
 """Phone numbers and the drafts of the first message to a seller."""
 
 import json
+import logging
 import re
 import urllib.parse
+from datetime import datetime
 from pathlib import Path
 
+from deal_scout import storage
 from deal_scout.errors import ProcessError
 from deal_scout.prompts import Listing
 from deal_scout.render import Message, esc
+
+log = logging.getLogger("dealscout")
 
 
 def normalise_phone(raw: object) -> str | None:
@@ -79,8 +84,27 @@ def contact_messages(data: Listing, phone: str | None) -> list[Message]:
     return out
 
 
-def seller_text(root: Path | str, n: int, kind: str, phone: str | None = None) -> list[Message]:
-    """Build what a message button sends: the full message (WhatsApp link if the number is known) or the SMS."""
+def mark_contacted(root: Path | str, n: int, now: datetime) -> None:
+    """Record when the owner first took a draft for the seller in listings/NNN.json ("contacted_at"; no phone)."""
+    path = Path(root) / "listings" / f"{n:03d}.json"
+    with storage.ROWS_LOCK:  # an analysis or a correction may be rewriting the same file
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("contacted_at"):
+                return
+            data["contacted_at"] = now.strftime("%Y-%m-%d %H:%M")
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except (OSError, ValueError, AttributeError):
+            log.warning("#%d: could not record when the seller was contacted", n)
+
+
+def seller_text(
+    root: Path | str, n: int, kind: str, phone: str | None = None, now: datetime | None = None
+) -> list[Message]:
+    """Build what a message button sends: the full message (WhatsApp link if the number is known) or the SMS.
+
+    Taking the draft counts as contacting the seller: the time is recorded the first time (now: for tests).
+    """
     path = Path(root) / "listings" / f"{n:03d}.json"
     if not path.exists():
         raise ProcessError(f"#{n} has not been analysed yet")
@@ -91,6 +115,7 @@ def seller_text(root: Path | str, n: int, kind: str, phone: str | None = None) -
         items = items[:1]
     if not items:
         raise ProcessError(f"#{n} has no {kind.upper()} draft; re-analyse it with /done {n}")
+    mark_contacted(root, n, now or datetime.now())
     return items
 
 

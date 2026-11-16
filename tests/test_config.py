@@ -104,5 +104,13 @@ class SettingsTests(unittest.TestCase):
             self.assertNotIn(secret, text)
 
 
+class DigestTimeTests(unittest.TestCase):
+    def test_default_and_value(self):
+        self.assertEqual(config.Settings.from_env({}).digest_time, "09:00")
+        self.assertEqual(config.Settings.from_env({"DIGEST_TIME": " 07:30 "}).digest_time, "07:30")
+        self.assertEqual(config.Settings.from_env({"DIGEST_TIME": "OFF"}).digest_time, "off")
+        self.assertEqual(config.Settings.from_env({"DIGEST_TIME": ""}).digest_time, "")
+
+
 if __name__ == "__main__":
     unittest.main()

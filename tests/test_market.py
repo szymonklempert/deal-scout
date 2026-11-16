@@ -115,5 +115,18 @@ class WriteTests(unittest.TestCase):
             self.assertIn("median 82.5k PLN", (listings / "market.md").read_text())
 
 
+class GroupMediansTests(unittest.TestCase):
+    def test_labels_match_the_market_headings_and_small_groups_are_left_out(self):
+        rows = [row(i, 80000 + i * 1000, km=100000 + i * 20000) for i in range(1, 6)]
+        rows += [row(9, 50000, family="Other (2000)"), row(10, 51000, year=2020, family="Other (2000)")]
+        medians = market.group_medians(rows, CFG)
+        self.assertEqual(list(medians), [f"{FAM} · 2009-2012"])
+        self.assertEqual(medians[f"{FAM} · 2009-2012"], (83000, 5))
+        self.assertIn(f"## {FAM} · 2009-2012", market.build(rows, CFG))
+
+    def test_no_groups_without_enough_data(self):
+        self.assertEqual(market.group_medians([row(1, 80000)], CFG), {})
+
+
 if __name__ == "__main__":
     unittest.main()

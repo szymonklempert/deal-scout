@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from types import SimpleNamespace as Ns
 
 from deal_scout import config, domain
+from deal_scout.reports import Entry
 
 SETTINGS = config.Settings()
 CAMPERVAN = domain.load("campervan")
@@ -122,3 +123,18 @@ class FakeOpenAI:
             return resp
 
         self.chat = Ns(completions=Ns(create=create))
+
+
+def entry(n, score=None, **kw):
+    base = {
+        "title": f"Van {n}",
+        "verdict": "ask first",
+        "status": "new",
+        "score": score,
+        "specs_avg": None,
+        "price": None,
+        "year": None,
+        "km": None,
+    }
+    base.update(kw)
+    return Entry(n=n, **base)

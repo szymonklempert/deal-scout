@@ -2,23 +2,9 @@
 
 import unittest
 
+from fakes import entry
+
 from deal_scout import reports
-from deal_scout.reports import Entry
-
-
-def entry(n, score=None, **kw):
-    base = {
-        "title": f"Van {n}",
-        "verdict": "ask first",
-        "status": "new",
-        "score": score,
-        "specs_avg": None,
-        "price": None,
-        "year": None,
-        "km": None,
-    }
-    base.update(kw)
-    return Entry(n=n, **base)
 
 
 class RankingTests(unittest.TestCase):

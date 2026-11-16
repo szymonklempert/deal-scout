@@ -3,6 +3,7 @@
 import json
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 from fakes import RESULT, SETTINGS, FakeRunner
@@ -20,7 +21,7 @@ class LibraryTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.domain = domain.load("gadget", roots=[FIXTURES])
-        for n, price in ((1, 1000), (2, 1200), (3, 900)):
+        for n, price in ((1, 1000), (2, 1200), (3, 900), (4, 1000)):
             (self.root / "inbox" / f"{n:03d}").mkdir(parents=True)
             data = dict(RESULT, price_pln=price, model=f"Model {n}", year=2000 + n)
             process.process_listing(
@@ -80,6 +81,34 @@ class LibraryTests(unittest.TestCase):
         entries = library.load_entries(self.root, self.domain)
         self.assertEqual(entries[1].specs, ())
         self.assertTrue(entries[2].specs)
+
+    def test_digest_snapshots_the_market_and_reports_moves_next_time(self):
+        now = datetime(2026, 11, 16, 9, 0)
+        self.assertEqual(library.read_snapshot(self.root / "listings" / "digest.json"), {})
+        first = library.digest_messages(self.root, domain=self.domain, now=now)
+        self.assertEqual(len(first), 1)
+        snapshot = json.loads((self.root / "listings" / "digest.json").read_text(encoding="utf-8"))
+        self.assertEqual(snapshot["sent"], "2026-11-16")
+        self.assertNotIn("Market", first[0].text)  # nothing to compare with yet
+        self.assertNotIn("600", json.dumps(snapshot))
+
+    def test_digest_market_section_from_an_older_snapshot(self):
+        path = self.root / "listings" / "digest.json"
+        library.write_snapshot(path, {"unknown": (1500.0, 6)}, datetime(2026, 11, 1))
+        (msg,) = library.digest_messages(self.root, domain=self.domain, now=datetime(2026, 11, 16, 9, 0))
+        self.assertIn("📈 Market\nunknown: 1.5k → 1k (−33%)", msg.text)
+        self.assertEqual(library.read_snapshot(path), {"unknown": (1000.0, 4)})
+
+    def test_broken_snapshot_reads_as_empty(self):
+        path = self.root / "listings" / "digest.json"
+        for text in ("{", "[]", '{"medians": {"a": 1}}', '{"medians": null}'):
+            path.write_text(text)
+            self.assertEqual(library.read_snapshot(path), {}, text)
+
+    def test_digest_with_nothing_stored_is_empty(self):
+        empty = self.root / "empty"
+        empty.mkdir()  # no listings folder yet
+        self.assertEqual(library.digest_messages(empty, domain=self.domain), [])
 
     def test_unknown_report(self):
         with self.assertRaises(ProcessError):

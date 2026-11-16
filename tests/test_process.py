@@ -4,6 +4,7 @@ import dataclasses
 import json
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 from fakes import CAMPERVAN, RESULT, SETTINGS, FakeRunner, check
@@ -135,6 +136,12 @@ class ProcessListingTests(unittest.TestCase):
         )[0]
         self.assertNotIn("📨 After", again.text)  # no new reply since the last analysis
         self.assertIn(("📨 Seller replied", "sr:1"), again.buttons)
+
+    def test_reanalysis_keeps_when_the_seller_was_contacted(self):
+        process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus", runner=FakeRunner())
+        contact.seller_text(self.root, 1, "msg", "", now=datetime(2026, 11, 12, 9, 5))
+        process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus", runner=FakeRunner())
+        self.assertEqual(json.loads((self.root / "listings/001.json").read_text())["contacted_at"], "2026-11-12 09:05")
 
     def test_reply_note_says_unchanged(self):
         process.process_listing(self.root, 1, settings=SETTINGS, domain=CAMPERVAN, model="opus", runner=FakeRunner())

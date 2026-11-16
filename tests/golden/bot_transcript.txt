@@ -8,6 +8,7 @@ Send me screenshots, links and notes about a listing. Everything sent close toge
 /top  the best open listings (/top 10 shows more)
 /compare 7 12  listings side by side (2 to 4 numbers)
 /show 7  the summary of #7 again
+/digest  the morning digest now
 /sheet  open the Google Sheet
 /usage  how much Claude the analysis used (7 days, 30 days, all time)
 /help  this message

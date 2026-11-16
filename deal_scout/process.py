@@ -74,6 +74,8 @@ def process_listing(
             log.info("#%s: %d check correction(s) dropped, the criteria changed", nnn, dropped)
         if overrides:
             data["overrides"] = overrides
+        if previous and previous.get("contacted_at"):
+            data["contacted_at"] = previous["contacted_at"]  # a re-analysis does not forget the seller was contacted
         (listings / (nnn + ".json")).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         rows = read_rows(listings / "listings.csv")
         links = root / "inbox" / nnn / "links.txt"

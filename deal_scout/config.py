@@ -56,6 +56,7 @@ class Settings:
     sheet_link: str = ""
     data_root: str = ""  # CAMPERVAN_ROOT
     domain: str = DEFAULT_DOMAIN
+    digest_time: str = "09:00"  # DIGEST_TIME: local "HH:MM" for the morning digest, "off" or empty to disable
     claude_env: Mapping[str, str] = field(default_factory=dict, repr=False, compare=False)
 
     @classmethod
@@ -80,5 +81,6 @@ class Settings:
             sheet_link=(env.get("GOOGLE_SHEET_LINK") or "").strip(),
             data_root=env.get("CAMPERVAN_ROOT") or "",
             domain=env.get("DOMAIN") or DEFAULT_DOMAIN,
+            digest_time=env.get("DIGEST_TIME", "09:00").strip().lower(),
             claude_env=child_env(env),
         )

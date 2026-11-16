@@ -16,9 +16,11 @@ import time
 import urllib.error
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Protocol, TypedDict, cast
+from typing import Any, NotRequired, Protocol, TypedDict, cast
 
+from deal_scout import digest as digest_mod
 from deal_scout import render, usage
 from deal_scout import reports as reports_mod
 from deal_scout.feedback_menu import FixReply
@@ -51,6 +53,7 @@ HELP = (
     "/top  the best open listings (/top 10 shows more)\n"
     "/compare 7 12  listings side by side (2 to 4 numbers)\n"
     "/show 7  the summary of #7 again\n"
+    "/digest  the morning digest now\n"
     "/sheet  open the Google Sheet\n"
     "/usage  how much Claude the analysis used (7 days, 30 days, all time)\n"
     "/help  this message"
@@ -115,6 +118,7 @@ class BotState(TypedDict):
 
     offset: int
     current: CurrentListing | None
+    last_digest: NotRequired[str]  # the date of the last morning digest; missing in files from before the digest
 
 
 FIX_PREFIXES = {
@@ -182,6 +186,8 @@ class Bot:
         seller_text: Callable[[int, str, str | None], list[Message]] | None = None,
         fixer: Callable[[int, str, list[str]], FixReply] | None = None,
         reports: Callable[[str, Sequence[str]], list[Message]] | None = None,
+        digest: Callable[[], list[Message]] | None = None,
+        digest_time: tuple[int, int] | None = None,
     ) -> None:
         """Wire the bot to its Telegram API, data folder, allowed user and the optional analysis callbacks."""
         self.api = api
@@ -194,6 +200,8 @@ class Bot:
         self.seller_text = seller_text  # callable(n, "msg"|"sms", phone) -> messages for a button tap
         self.fixer = fixer  # callable(n, action, args) -> what to show after a 📝 Feedback tap
         self.reports = reports  # callable(command, args) -> messages for /top, /compare and /show
+        self.digest = digest  # callable() -> the morning digest's messages (none when there is nothing to say)
+        self.digest_time = digest_time  # (hour, minute) of the daily digest in local time; None means off
         self.pending_reason: PendingReason | None = None  # in memory only; a restart forgets it
         self.attach: PendingAttach | None = None  # reply mode, in memory only
         self.feedback_phone: dict[int, str] = {}  # listing -> phone from a Feedback tap (memory only)
@@ -375,6 +383,7 @@ class Bot:
             "/top": functools.partial(self.run_reports, "/top"),
             "/compare": functools.partial(self.run_reports, "/compare"),
             "/show": functools.partial(self.run_reports, "/show"),
+            "/digest": self.cmd_digest,
         }
         handler = handlers.get(cmd)
         if handler is None:
@@ -465,6 +474,37 @@ class Bot:
             return
         for item in items:
             self.send(item)
+
+    def cmd_digest(self, chat: int | None, args: Sequence[str]) -> None:
+        """Send the morning digest now, without counting it as today's."""
+        if self.digest is None:
+            self.reply(chat, "Not available.")
+            return
+        try:
+            items = self.digest()
+        except Exception as exc:
+            log.exception("digest failed")
+            self.reply(chat, f"The digest failed: {exc}")
+            return
+        if not items:
+            self.reply(chat, "Nothing to report today.")
+        for item in items:
+            self.send(item)
+
+    def send_digest_if_due(self) -> None:
+        """Send the day's digest once, the first tick after its time (so a restart later in the day catches up)."""
+        now = datetime.fromtimestamp(self.clock())
+        if not (
+            self.digest and self.digest_time and digest_mod.due(now, self.digest_time, self.state.get("last_digest"))
+        ):
+            return
+        self.state["last_digest"] = now.strftime(digest_mod.DATE_FORMAT)
+        self.save_state()  # first, so a failing digest is not retried every tick
+        try:
+            for item in self.digest():
+                self.send(item)
+        except Exception:  # the digest is a bonus: log it and carry on
+            log.exception("morning digest failed")
 
     def run_reports(self, cmd: str, chat: int | None, args: Sequence[str]) -> None:
         """Send what /top, /compare or /show (or a button's sh:N) answer; a problem comes back as one line."""
@@ -667,6 +707,7 @@ class Bot:
         """
         self.flush_ack()
         self.expire_attach()
+        self.send_digest_if_due()
         cur = self.state.get("current")
         if self.auto_analyse and cur and self.clock() - cur["last"] > self.window:
             self.state["current"] = None
