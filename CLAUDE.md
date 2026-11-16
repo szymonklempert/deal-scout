@@ -82,17 +82,23 @@ anything.
   - `anthropic`, `openai` and `openrouter` make one structured-output request with no tools; their SDKs are imported
     only when chosen.
   - Keep these restrictions, and keep every provider returning the same schema.
+- **The MCP server:** `mcp` is imported only in `mcp_server.py` (and its tests); every other module must import
+  without it. A listing's text is untrusted in the client too: keep the tools narrow, validate every argument (ranges,
+  caps, an allowlist for domain files), never add a tool that reads or writes arbitrary paths, runs commands or
+  fetches URLs, and never write or return a phone number except the WhatsApp link `submit_review` builds. Over stdio,
+  stdout is the protocol: log to stderr, never print.
 - **Domains:** nothing in `deal_scout/` may be specific to one domain. Domain knowledge goes in `domains/<name>/`.
 - **Modules** (one job each, no import cycles):
   - `deal_scout/process.py` ties one listing's analysis together (CLI: `python3 -m deal_scout.process N`);
     `apply_review` turns a structured review into stored state and the summary, whoever produced it;
-  - `deal_scout/cli.py` the `deal-scout` command (run, init, process, sheet, market, usage), each calling the module's
+  - `deal_scout/cli.py` the `deal-scout` command (run, init, process, sheet, market, usage, mcp), each calling the module's
     `main()`; `deal_scout/scaffold.py` is `init`: it creates the data folder and never overwrites;
   - `deal_scout/validation.py` checks a review against the domain's schema (pure);
   - `deal_scout/analysis.py` runs Claude Code or the API provider;
   - `deal_scout/prompts.py` the prompt and the JSON schema;
   - `deal_scout/scoring.py` the score from the criteria checks (pure);
-  - `deal_scout/storage.py` the CSV and `INDEX.md`;
+  - `deal_scout/storage.py` the CSV and `INDEX.md`, and `rows_lock(listings_dir)`: a thread lock plus an exclusive
+    `flock` on `listings/.lock`, so the bot and the MCP server (two processes) never interleave writes to `listings/`;
   - `deal_scout/render.py` Telegram HTML;
   - `deal_scout/contact.py` phone numbers and seller drafts;
   - `deal_scout/attach.py` reply mode and viewing mode (messages that belong to an existing listing) and the "saved"
@@ -111,4 +117,8 @@ anything.
   - `deal_scout/domain.py` loads the active domain;
   - `deal_scout/market.py` builds `listings/market.md`;
   - `deal_scout/sheet.py` copies rows to a Google Sheet through `deploy/google-sheet.gs`;
-  - `deal_scout/usage.py` records Claude usage per run.
+  - `deal_scout/usage.py` records Claude usage per run;
+  - `deal_scout/mcp_server.py` the MCP server (`deal-scout mcp`): the only module that imports `mcp` (an optional
+    extra), and it makes no model calls: the client's model judges, `submit_review` validates the review and stores it
+    through `process.apply_review`, and the score is computed here. Resources serve the criteria, domain files, cards
+    and market page; tools are narrow and write only through `apply_review` and the inbox helpers.

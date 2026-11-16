@@ -45,6 +45,8 @@ to your Google Sheet.
   approve.
 - 🔒 **Private and safe.** Only you can talk to it, phone numbers are never stored, and the model runs sandboxed with
   no web access. It never contacts anyone: you send the messages.
+- 🔌 **Also an MCP server.** Review and compare listings from Claude Desktop or Claude Code; the server scores, the
+  model judges.
 - 🧩 **Not just campervans.** What it reviews is a folder of plain files (`domains/campervan/`); a car or a TV is just
   another folder.
 
@@ -88,6 +90,20 @@ Needs Python 3.12+ and [Claude Code](https://code.claude.com) logged in (or an A
 | `/digest` | the morning digest now (it also arrives by itself at `DIGEST_TIME`) |
 | `/status`, `/usage` | is the bot up to date; how much Claude it used |
 | 📨 / 🔍 / 📝 buttons | add the seller's reply; open the viewing checklist; correct a score |
+
+## Use it from Claude (MCP)
+
+`uv sync --extra mcp`, then add the server (it uses the same data folder as the bot):
+
+```sh
+claude mcp add deal-scout -- uv --directory <repo> run deal-scout mcp
+```
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{"mcpServers": {"deal-scout": {"command": "uv", "args": ["--directory", "<repo>", "run", "deal-scout", "mcp"]}}}
+```
 
 ## Development
 

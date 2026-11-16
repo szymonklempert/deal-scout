@@ -1,6 +1,7 @@
 # deal-scout needs only the standard library. Run it from a checkout (python3 -m deal_scout, or `uv run deal-scout`)
 # or install the package (it ships the deal-scout command). uv manages the dev tools and the optional provider SDKs:
-# `uv sync` (dev tools, installs the project editable), `uv sync --extra anthropic` (Claude API provider).
+# `uv sync` (dev tools, installs the project editable), `uv sync --extra anthropic` (Claude API provider),
+# `uv sync --extra mcp` (the MCP server; the dev tools include it so CI tests it).
 # Builds must never contain the owner's private files: criteria.md, .env, inbox/, listings/, logs/ (scripts/check_dist.py).
 
 [build-system]
