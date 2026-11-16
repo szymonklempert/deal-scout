@@ -316,7 +316,7 @@ class GoldenTests(unittest.TestCase):
         say("hello", user=99)
         say("/bogus")
         say("")
-        bot.flush_ack(force=True)
+        bot.attach.flush_ack(force=True)
         self.check("bot_transcript.txt", message_text(api.sent))
 
     def test_feedback_transcript(self):
@@ -395,7 +395,7 @@ class GoldenTests(unittest.TestCase):
         tap("sr:1")
         say(photo="reply")
         say("Battery health is 91%, serial number on the box")
-        bot.flush_ack(force=True)
+        bot.attach.flush_ack(force=True)
         tap("sa:1")
         bot.run_job(bot.jobs.get_nowait())
         self.check("reply_transcript.txt", message_text(api.sent))

@@ -421,7 +421,7 @@ class BotTests(unittest.TestCase):
     def test_stranger_seller_replied_tap_is_ignored(self):
         bot, _ = self.reply_bot()
         self.tap_reply(bot, "sr:1", user=99)
-        self.assertEqual((bot.attach, self.api.sent), (None, []))
+        self.assertEqual((bot.attach.pending, self.api.sent), (None, []))
 
     def test_seller_replied_tap_starts_reply_mode_and_clears_the_pending_reason(self):
         bot, calls = self.fix_bot()
@@ -465,7 +465,7 @@ class BotTests(unittest.TestCase):
         bot.handle_update(msg(text="one"))
         self.clock.t += 800
         bot.tick()
-        self.assertIsNotNone(bot.attach)
+        self.assertIsNotNone(bot.attach.pending)
         bot.handle_update(msg(text="two"))
         self.assertEqual((self.root / "inbox/001/replies.txt").read_text().count("\n"), 2)
 
@@ -474,14 +474,14 @@ class BotTests(unittest.TestCase):
         self.tap_reply(bot, "sr:1")
         bot.handle_update(msg(text="answer"))
         self.tap_reply(bot, "sa:1")
-        self.assertIsNone(bot.attach)
+        self.assertIsNone(bot.attach.pending)
         self.assertEqual(
             self.api.sent[-2:],
             ["📨 #1: 0 photo(s), 1 text(s) saved as the seller's reply.", "#1: analysing, usually about a minute..."],
         )
         self.tap_reply(bot, "sr:1")
         bot.handle_update(msg(text="/done"))
-        self.assertIsNone(bot.attach)
+        self.assertIsNone(bot.attach.pending)
         self.drain(bot)
         self.assertEqual(done, [1, 1])
 
@@ -497,7 +497,7 @@ class BotTests(unittest.TestCase):
         self.tap_reply(bot, "sr:1")
         bot.handle_update(msg(text="answer"))
         self.tap_reply(bot, "sc:1")
-        self.assertIsNone(bot.attach)
+        self.assertIsNone(bot.attach.pending)
         self.assertEqual(self.api.sent[-1], "📨 #1: reply mode ended; what you sent is kept. Tap 📨 again to add more.")
         self.assertTrue((self.root / "inbox/001/replies.txt").exists())
         bot.handle_update(msg(text="a plain note"))  # reply mode is over: a new listing
@@ -508,7 +508,7 @@ class BotTests(unittest.TestCase):
         bot, _ = self.reply_bot()
         self.tap_reply(bot, "sr:1")
         bot.handle_update(msg(text="/list"))
-        self.assertIsNone(bot.attach)
+        self.assertIsNone(bot.attach.pending)
         self.assertEqual(self.api.sent[-2], "📨 #1: reply mode ended; what you sent is kept. Tap 📨 again to add more.")
         self.assertIn("#1  1 photo(s)", self.api.sent[-1])
 
@@ -518,7 +518,7 @@ class BotTests(unittest.TestCase):
         bot.handle_update(msg(text="answer"))
         self.clock.t += 901
         bot.tick()
-        self.assertIsNone(bot.attach)
+        self.assertIsNone(bot.attach.pending)
         self.assertEqual(
             self.api.sent[-1], "📨 #1: reply mode ended after 15 minutes of quiet. Re-analyse when you're ready:"
         )
